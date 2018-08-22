@@ -1,0 +1,6 @@
+name: BuyRegion
+version: @version@
+main: com.region.buyregion.BuyRegion
+depend: [Vault, WorldGuard]
+authors: [GentleGravel]
+description: WorldGuard Region Sales
