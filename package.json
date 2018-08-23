@@ -1,9 +1,0 @@
-{
-  "devDependencies": {
-    "prettier": "1.14.2",
-    "prettier-plugin-java": "0.0.10"
-  },
-  "scripts": {
-    "lint": "prettier --tab-width=4 --print-width=999 --write 'src/main/java/**/*.java'"
-  }
-}

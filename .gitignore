@@ -1,4 +1,5 @@
-package.jso*.lock
+package.json
+*.lock
 build
 .gradle
 .idea
