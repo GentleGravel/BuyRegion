@@ -1,0 +1,46 @@
+# The plugin is in testing and may be unstable and / or buggy, Please report any bugs or errors to the Bukkit dev page so we can squat them
+# as soon as possible :)
+
+BuyRegionMax: 0
+CheckExpirationsInMins: 5
+RequireBuyMode: true
+RentRegionMax: 0
+RequireBuyPerms: false
+RequireRentPerms: false
+# DateFormat values: Default, US or EU
+DateFormat: Default
+Messages:
+  InvalidPriceTime: Invalid sign. Invalid price or timespan!
+  RegionNoExist: Invalid sign. Region doesn't exist!
+  EvictedFrom: You have been evicted from
+  InvalidArg: Invalid argument. Accepted values-> true, false, yes, no, off, on
+  RenewTurnOff: Auto-Renew has been turned OFF for you.
+  RenewTurnOn: Auto-Renew has been turned ON for you.
+  RenewOff: Auto-Renew is off!
+  RenewOn: Auto-Renew is on!
+  InvalidRenewArgs: Invalid args-> /buyregion renew <region>
+  BuyModeExit: You have exited Buy Mode.
+  BuyModeEnter: You are now in Buy Mode - right-click the BuyRegion sign!
+  ToEnterBuyMode: To enter Buy Mode type-> /buyregion
+  BuyModeRent: You must be in Buy Mode to rent this region!
+  BuyModeBuy: You must be in Buy Mode to buy this region!
+  NotEnoughRent: Not enough money to rent this region!
+  NotEnoughBuy: Not enough money to buy this region!
+  TransFailed: Transaction Failed!
+  Rented: Congrats! You have rented
+  NewBalance: Your new balance is
+  RentMax: You are not allowed to rent more regions. Max
+  RentPerms: You do not have permission to rent regions.
+  Balance: Your balance is
+  Purchased: Congrats! You have purchased
+  BuyMax: You are not allowed to buy more regions. Max
+  BuyPerms: You do not have permission to buy regions.
+  NotRented: is not currently rented.
+  NotRenting: You are not renting this region. You cannot renew it!
+  NotEnoughRenew: Not enough money to renew rental for this region!
+  Renewed: Congrats! You have renewed
+  Expired: Your rental has expired for region
+  Help1: BuyRegion Commands
+  Help2: /buyregion - toggles buy mode
+  Help3: /buyregion renew <region> - renews rental of <region>
+  Help4: /buyregion autorenew <true/false> - sets auto-renew for all rented regions

@@ -1,6 +1,10 @@
 name: BuyRegion
 version: @version@
 main: com.region.buyregion.BuyRegion
+api-version: 1.13
 depend: [Vault, WorldGuard]
 authors: [GentleGravel]
 description: WorldGuard Region Sales
+commands:
+  buyregion:
+    description: toggles region buy or rent mode.

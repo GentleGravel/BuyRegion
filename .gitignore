@@ -1,0 +1,4 @@
+package.jso*.lock
+build
+.gradle
+.idea
