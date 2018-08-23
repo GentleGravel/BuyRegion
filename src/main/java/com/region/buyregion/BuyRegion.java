@@ -2,7 +2,6 @@ package com.region.buyregion;
 
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.BukkitWorldGuardPlatform;
-import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
 import com.sk89q.worldguard.domains.DefaultDomain;
 import com.sk89q.worldguard.protection.managers.RegionManager;
 import com.sk89q.worldguard.protection.regions.ProtectedRegion;
@@ -31,7 +30,6 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
-import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -39,9 +37,6 @@ public final class BuyRegion
     extends JavaPlugin implements Listener {
     static final String dataLoc = "plugins" + File.separator + "BuyRegion" + File.separator;
     static final String signDataLoc = "plugins" + File.separator + "BuyRegion" + File.separator + "rent" + File.separator;
-    static final String rentedRE = "RentedRegionExpirations";
-    static final String rentedRC = "RentedRegionCounts";
-    static final String autoRenewsFileName = "AutoRenews";
     static long tickRate = 60L;
     public static Economy econ = null;
     public int buyRegionMax = 0;
@@ -234,142 +229,142 @@ public final class BuyRegion
     public void scheduleRenterTask() {
         getServer().getScheduler().scheduleSyncRepeatingTask(
             this,
-                () -> {
-                    if (BuyRegion.this.RentedRegionExpirations == null)
-                    return;
-                    try {
-                        long now = new Date().getTime();
-                        for (String regionName : BuyRegion.this.RentedRegionExpirations.keySet()) {
-                            if (BuyRegion.this.RentedRegionExpirations.containsKey(regionName)) {
-                                long regionExp = BuyRegion.this.RentedRegionExpirations.get(regionName);
-                                if (regionExp <= now) {
-                                    boolean renewed = false;
+            () -> {
+                if (BuyRegion.this.RentedRegionExpirations == null)
+                return;
+                try {
+                    long now = new Date().getTime();
+                    for (String regionName : BuyRegion.this.RentedRegionExpirations.keySet()) {
+                        if (BuyRegion.this.RentedRegionExpirations.containsKey(regionName)) {
+                            long regionExp = BuyRegion.this.RentedRegionExpirations.get(regionName);
+                            if (regionExp <= now) {
+                                boolean renewed = false;
 
-                                    RentableRegion rentedRegion = BuyRegion.this.loadRegion(regionName);
-                                    if (BuyRegion.this.AutoRenews.containsKey(rentedRegion.renter)) {
-                                        if (BuyRegion.this.AutoRenews.get(rentedRegion.renter)) {
-                                            Player player = BuyRegion.this.getServer().getPlayer(rentedRegion.renter);
-
-                                            double regionPrice = Double.parseDouble(rentedRegion.signLine3);
-                                            if (BuyRegion.econ.getBalance(rentedRegion.renter) >= regionPrice) {
-                                                EconomyResponse response = BuyRegion.econ.withdrawPlayer(rentedRegion.renter, regionPrice);
-                                                if (response.transactionSuccess()) {
-                                                    renewed = true;
-
-                                                    String[] timeSpan = rentedRegion.signLine4.split(" ");
-                                                    long currentExpiration = BuyRegion.this.RentedRegionExpirations.get(regionName);
-
-                                                    DateResult timeData = BuyRegion.this.parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
-                                                    BuyRegion.this.RentedRegionExpirations.put(regionName, timeData.Time);
-                                                    BuyRegion.this.saveRentedRegionExpirations();
-
-                                                    BuyRegion.this.logActivity(rentedRegion.renter, " AUTORENEW " + regionName);
-
-                                                    SimpleDateFormat sdf = new SimpleDateFormat(BuyRegion.this.dateFormatString);
-                                                    if (player != null) {
-                                                        player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Renewed") + " " + regionName + " -> " + sdf.format(new Date(timeData.Time))));
-                                                        player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("NewBalance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
-                                                    }
-                                                    World world = BuyRegion.this.getServer().getWorld(rentedRegion.worldName);
-
-                                                    double x = Double.parseDouble(rentedRegion.signLocationX);
-                                                    double y = Double.parseDouble(rentedRegion.signLocationY);
-                                                    double z = Double.parseDouble(rentedRegion.signLocationZ);
-                                                    float pitch = Float.parseFloat(rentedRegion.signLocationPitch);
-                                                    float yaw = Float.parseFloat(rentedRegion.signLocationYaw);
-
-                                                    Location signLoc = new Location(world, x, y, z, pitch, yaw);
-
-                                                    Block currentBlock = world.getBlockAt(signLoc);
-                                                    if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
-                                                        Sign theSign = (Sign) currentBlock.getState();
-
-                                                        theSign.setLine(0, regionName);
-                                                        theSign.setLine(1, rentedRegion.renter);
-                                                        theSign.setLine(2, ChatColor.WHITE + "Until:");
-                                                        theSign.setLine(3, sdf.format(new Date(timeData.Time)));
-                                                        theSign.update();
-
-                                                        theSign.update();
-                                                    }
-                                                }
-                                            } else if (player != null) {
-                                                player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("NotEnoughRenew") + " " + regionName + "!"));
-                                                player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Balance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
-                                            }
-                                        }
-                                    }
-                                    if (!renewed) {
-                                        BuyRegion.this.RentedRegionExpirations.remove(regionName);
-                                        BuyRegion.this.saveRentedRegionExpirations();
-
-                                        World world = getServer().getWorld(rentedRegion.worldName);
-                                        ProtectedRegion region = BuyRegion.this.getWorldGuardRegion(rentedRegion.worldName, regionName);
-
-                                        if (region == null) return;
-
-                                        DefaultDomain dd = region.getMembers();
-
-                                        dd.removePlayer(rentedRegion.renter);
-
-                                        region.setMembers(dd);
-
-                                        BuyRegion.this.removeRentedRegionFromCount(rentedRegion.renter);
-
-                                        double x = Double.parseDouble(rentedRegion.signLocationX);
-                                        double y = Double.parseDouble(rentedRegion.signLocationY);
-                                        double z = Double.parseDouble(rentedRegion.signLocationZ);
-                                        float pitch = Float.parseFloat(rentedRegion.signLocationPitch);
-                                        float yaw = Float.parseFloat(rentedRegion.signLocationYaw);
-
-                                        Location signLoc = new Location(world, x, y, z, pitch, yaw);
-
-                                        Block currentBlock = world.getBlockAt(signLoc);
-                                        if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
-                                            Sign theSign = (Sign) currentBlock.getState();
-
-                                            theSign.setLine(0, rentedRegion.signLine1);
-                                            theSign.setLine(1, rentedRegion.signLine2);
-                                            theSign.setLine(2, rentedRegion.signLine3);
-                                            theSign.setLine(3, rentedRegion.signLine4);
-
-                                            theSign.update();
-                                        } else {
-                                            try {
-                                                if (rentedRegion.signType == "WALL_SIGN") {
-                                                    currentBlock.setType(Material.WALL_SIGN);
-                                                } else {
-                                                    currentBlock.setType(Material.SIGN);
-                                                }
-                                                Sign newSign = (Sign) currentBlock.getState();
-
-                                                newSign.setLine(0, rentedRegion.signLine1);
-                                                newSign.setLine(1, rentedRegion.signLine2);
-                                                newSign.setLine(2, rentedRegion.signLine3);
-                                                newSign.setLine(3, rentedRegion.signLine4);
-
-                                                newSign.update();
-                                            } catch(Exception e) {
-                                                BuyRegion.this.getLogger().info("RentRegion automatic sign creation failed for region " + rentedRegion.regionName);
-                                            }
-                                        }
-                                        File regionFile = new File(BuyRegion.signDataLoc + regionName + ".digi");
-                                        if (regionFile.exists()) {
-                                            regionFile.delete();
-                                        }
+                                RentableRegion rentedRegion = BuyRegion.this.loadRegion(regionName);
+                                if (BuyRegion.this.AutoRenews.containsKey(rentedRegion.renter)) {
+                                    if (BuyRegion.this.AutoRenews.get(rentedRegion.renter)) {
                                         Player player = BuyRegion.this.getServer().getPlayer(rentedRegion.renter);
-                                        if ((player != null)) {
-                                            player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Expired") + " " + regionName));
+
+                                        double regionPrice = Double.parseDouble(rentedRegion.signLine3);
+                                        if (BuyRegion.econ.getBalance(rentedRegion.renter) >= regionPrice) {
+                                            EconomyResponse response = BuyRegion.econ.withdrawPlayer(rentedRegion.renter, regionPrice);
+                                            if (response.transactionSuccess()) {
+                                                renewed = true;
+
+                                                String[] timeSpan = rentedRegion.signLine4.split(" ");
+                                                long currentExpiration = BuyRegion.this.RentedRegionExpirations.get(regionName);
+
+                                                DateResult timeData = BuyRegion.this.parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
+                                                BuyRegion.this.RentedRegionExpirations.put(regionName, timeData.Time);
+                                                BuyRegion.this.saveRentedRegionExpirations();
+
+                                                BuyRegion.this.logActivity(rentedRegion.renter, " AUTORENEW " + regionName);
+
+                                                SimpleDateFormat sdf = new SimpleDateFormat(BuyRegion.this.dateFormatString);
+                                                if (player != null) {
+                                                    player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Renewed") + " " + regionName + " -> " + sdf.format(new Date(timeData.Time))));
+                                                    player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("NewBalance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
+                                                }
+                                                World world = BuyRegion.this.getServer().getWorld(rentedRegion.worldName);
+
+                                                double x = Double.parseDouble(rentedRegion.signLocationX);
+                                                double y = Double.parseDouble(rentedRegion.signLocationY);
+                                                double z = Double.parseDouble(rentedRegion.signLocationZ);
+                                                float pitch = Float.parseFloat(rentedRegion.signLocationPitch);
+                                                float yaw = Float.parseFloat(rentedRegion.signLocationYaw);
+
+                                                Location signLoc = new Location(world, x, y, z, pitch, yaw);
+
+                                                Block currentBlock = world.getBlockAt(signLoc);
+                                                if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
+                                                    Sign theSign = (Sign) currentBlock.getState();
+
+                                                    theSign.setLine(0, regionName);
+                                                    theSign.setLine(1, rentedRegion.renter);
+                                                    theSign.setLine(2, ChatColor.WHITE + "Until:");
+                                                    theSign.setLine(3, sdf.format(new Date(timeData.Time)));
+                                                    theSign.update();
+
+                                                    theSign.update();
+                                                }
+                                            }
+                                        } else if (player != null) {
+                                            player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("NotEnoughRenew") + " " + regionName + "!"));
+                                            player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Balance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
                                         }
-                                        BuyRegion.this.logActivity(rentedRegion.renter, " EXPIRED " + rentedRegion.regionName);
                                     }
+                                }
+                                if (!renewed) {
+                                    BuyRegion.this.RentedRegionExpirations.remove(regionName);
+                                    BuyRegion.this.saveRentedRegionExpirations();
+
+                                    World world = getServer().getWorld(rentedRegion.worldName);
+                                    ProtectedRegion region = BuyRegion.this.getWorldGuardRegion(rentedRegion.worldName, regionName);
+
+                                    if (region == null)
+                                    return;
+                                    DefaultDomain dd = region.getMembers();
+
+                                    dd.removePlayer(rentedRegion.renter);
+
+                                    region.setMembers(dd);
+
+                                    BuyRegion.this.removeRentedRegionFromCount(rentedRegion.renter);
+
+                                    double x = Double.parseDouble(rentedRegion.signLocationX);
+                                    double y = Double.parseDouble(rentedRegion.signLocationY);
+                                    double z = Double.parseDouble(rentedRegion.signLocationZ);
+                                    float pitch = Float.parseFloat(rentedRegion.signLocationPitch);
+                                    float yaw = Float.parseFloat(rentedRegion.signLocationYaw);
+
+                                    Location signLoc = new Location(world, x, y, z, pitch, yaw);
+
+                                    Block currentBlock = world.getBlockAt(signLoc);
+                                    if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
+                                        Sign theSign = (Sign) currentBlock.getState();
+
+                                        theSign.setLine(0, rentedRegion.signLine1);
+                                        theSign.setLine(1, rentedRegion.signLine2);
+                                        theSign.setLine(2, rentedRegion.signLine3);
+                                        theSign.setLine(3, rentedRegion.signLine4);
+
+                                        theSign.update();
+                                    } else {
+                                        try {
+                                            if (rentedRegion.signType == "WALL_SIGN") {
+                                                currentBlock.setType(Material.WALL_SIGN);
+                                            } else {
+                                                currentBlock.setType(Material.SIGN);
+                                            }
+                                            Sign newSign = (Sign) currentBlock.getState();
+
+                                            newSign.setLine(0, rentedRegion.signLine1);
+                                            newSign.setLine(1, rentedRegion.signLine2);
+                                            newSign.setLine(2, rentedRegion.signLine3);
+                                            newSign.setLine(3, rentedRegion.signLine4);
+
+                                            newSign.update();
+                                        } catch(Exception e) {
+                                            BuyRegion.this.getLogger().info("RentRegion automatic sign creation failed for region " + rentedRegion.regionName);
+                                        }
+                                    }
+                                    File regionFile = new File(BuyRegion.signDataLoc + regionName + ".digi");
+                                    if (regionFile.exists()) {
+                                        regionFile.delete();
+                                    }
+                                    Player player = BuyRegion.this.getServer().getPlayer(rentedRegion.renter);
+                                    if ((player != null)) {
+                                        player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Expired") + " " + regionName));
+                                    }
+                                    BuyRegion.this.logActivity(rentedRegion.renter, " EXPIRED " + rentedRegion.regionName);
                                 }
                             }
                         }
-                    } catch(Exception e) {
-                        e.printStackTrace();
                     }
-                },
+                } catch(Exception e) {
+                    e.printStackTrace();
+                }
+            },
             tickRate,
             tickRate
         );
@@ -1216,8 +1211,8 @@ public final class BuyRegion
             World world = getServer().getWorld(rentedRegion.worldName);
             ProtectedRegion region = BuyRegion.this.getWorldGuardRegion(rentedRegion.worldName, regionName);
 
-            if (region == null) return false;
-
+            if (region == null)
+            return false;
             DefaultDomain dd = region.getMembers();
 
             dd.removePlayer(rentedRegion.renter);
@@ -1329,7 +1324,6 @@ public final class BuyRegion
                         event.setLine(0, "-invalid-");
                         return;
                     }
-
                     event.getPlayer().sendMessage(Notice("A BuyRegion sign has been created!"));
                 }
             }

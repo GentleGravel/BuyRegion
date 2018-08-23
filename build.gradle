@@ -2,6 +2,7 @@ apply plugin: 'java'
 
 group = pluginGroup
 version = pluginVersion
+archivesBaseName = 'BuyRegion'
 
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
