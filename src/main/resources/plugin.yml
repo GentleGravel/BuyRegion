@@ -3,7 +3,7 @@ version: @version@
 main: com.region.buyregion.BuyRegion
 api-version: 1.13
 depend: [Vault, WorldGuard]
-authors: [GentleGravel]
+authors: [GentleGravel, Luke199]
 description: WorldGuard Region Sales
 commands:
   buyregion:

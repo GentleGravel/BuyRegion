@@ -234,9 +234,7 @@ public final class BuyRegion
     public void scheduleRenterTask() {
         getServer().getScheduler().scheduleSyncRepeatingTask(
             this,
-            new Runnable() {
-
-                public void run() {
+                () -> {
                     if (BuyRegion.this.RentedRegionExpirations == null)
                     return;
                     try {
@@ -247,7 +245,7 @@ public final class BuyRegion
                                 if (regionExp <= now) {
                                     boolean renewed = false;
 
-                                    BuyRegion.RentableRegion rentedRegion = BuyRegion.this.loadRegion(regionName);
+                                    RentableRegion rentedRegion = BuyRegion.this.loadRegion(regionName);
                                     if (BuyRegion.this.AutoRenews.containsKey(rentedRegion.renter)) {
                                         if (BuyRegion.this.AutoRenews.get(rentedRegion.renter)) {
                                             Player player = BuyRegion.this.getServer().getPlayer(rentedRegion.renter);
@@ -261,7 +259,7 @@ public final class BuyRegion
                                                     String[] timeSpan = rentedRegion.signLine4.split(" ");
                                                     long currentExpiration = BuyRegion.this.RentedRegionExpirations.get(regionName);
 
-                                                    BuyRegion.DateResult timeData = BuyRegion.this.parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
+                                                    DateResult timeData = BuyRegion.this.parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
                                                     BuyRegion.this.RentedRegionExpirations.put(regionName, timeData.Time);
                                                     BuyRegion.this.saveRentedRegionExpirations();
 
@@ -371,9 +369,7 @@ public final class BuyRegion
                     } catch(Exception e) {
                         e.printStackTrace();
                     }
-                }
-
-            },
+                },
             tickRate,
             tickRate
         );
@@ -805,8 +801,10 @@ public final class BuyRegion
                         if (this.BuyMode.containsKey(playerName) || (!this.requireBuyMode)) {
                             if (regionName.length() > 0) {
                                 String dateString = sign.getLine(3);
+                                double regionPrice;
+
                                 try {
-                                    double regionPrice = Double.parseDouble(sign.getLine(2));
+                                    regionPrice = Double.parseDouble(sign.getLine(2));
 
                                     String[] expiration = dateString.split("\\s");
                                     int i = Integer.parseInt(expiration[0]);
@@ -825,7 +823,6 @@ public final class BuyRegion
                                     return;
                                 }
                                 String[] expiration = sign.getLine(3).split("\\s");
-                                double regionPrice = Double.parseDouble(sign.getLine(2));
                                 DateResult dateResult = parseDateString(Integer.parseInt(expiration[0]), expiration[1]);
                                 if (dateResult.IsError) {
                                     throw new Exception();
