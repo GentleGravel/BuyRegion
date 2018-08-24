@@ -1,5 +1,8 @@
 package com.region.buyregion;
 
+import com.region.buyregion.config.BuyRegionConfig;
+import com.region.buyregion.config.DigiFile;
+import com.region.buyregion.regions.RentableRegion;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.BukkitWorldGuardPlatform;
 import com.sk89q.worldguard.domains.DefaultDomain;
@@ -12,6 +15,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 import net.md_5.bungee.api.ChatColor;
 import net.milkbowl.vault.economy.Economy;
@@ -35,146 +39,68 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class BuyRegion
     extends JavaPlugin implements Listener {
-    static final String dataLoc = "plugins" + File.separator + "BuyRegion" + File.separator;
-    static final String signDataLoc = "plugins" + File.separator + "BuyRegion" + File.separator + "rent" + File.separator;
-    static long tickRate = 60L;
-    public static Economy econ = null;
-    public int buyRegionMax = 0;
-    public int rentRegionMax = 0;
-    public boolean requireBuyMode = true;
-    public boolean requireBuyPerms = false;
-    public boolean requireRentPerms = false;
-    public String dateFormatString = "yy/MM/dd h:mma";
-    public HashMap<String, Boolean> BuyMode = new HashMap();
-    public HashMap<String, Integer> RegionCounts = new HashMap();
-    public ConcurrentHashMap<String, Integer> RentedRegionCounts = new ConcurrentHashMap();
-    public ConcurrentHashMap<String, Long> RentedRegionExpirations = new ConcurrentHashMap();
-    public ConcurrentHashMap<String, Boolean> AutoRenews = new ConcurrentHashMap();
-    public ConcurrentHashMap<String, String> Messages = new ConcurrentHashMap();
+    private BuyRegionConfig config;
+    private static Economy econ = null;
+    private HashMap<String, Boolean> BuyMode = new HashMap<>();
+    private DigiFile<HashMap<String, Integer>> regionCounts;
+    private DigiFile<ConcurrentHashMap<String, Integer>> rentedRegionCounts;
+    private DigiFile<ConcurrentHashMap<String, Long>> rentedRegionExpirations;
+    private DigiFile<ConcurrentHashMap<String, Boolean>> autoRenews;
+    private Messages messages = new Messages();
+
+    public static BuyRegion instance;
 
     @Override
     public void onEnable() {
+        instance = this;
+
+        getLogger().info("HI");
+
         try {
             if (!setupEconomy()) {
                 getLogger().severe("No Vault-compatible economy plugin found!");
                 getServer().getPluginManager().disablePlugin(this);
                 return;
             }
-            new File(dataLoc).mkdirs();
-            new File(signDataLoc).mkdirs();
+
+            config = new BuyRegionConfig();
 
             getServer().getPluginManager().registerEvents(this, this);
 
             getLogger().info("Maintained by Luke199");
             getLogger().info("Updated to 1.13 by GentleGravel");
 
-            this.Messages = getDefaultMessages();
+            messages = new Messages();
+            messages.init();
 
-            getConfig().options().copyDefaults(true);
-
-            loadRegionCounts();
-            loadRentedRegionExpirations();
-            loadRentedRegionCounts();
-            loadAutoRenews();
-            try {
-                this.buyRegionMax = getConfig().getInt("BuyRegionMax", 0);
-            } catch(Exception e) {
-                this.buyRegionMax = 0;
-            }
-            try {
-                this.rentRegionMax = getConfig().getInt("RentRegionMax", 0);
-            } catch(Exception e) {
-                this.rentRegionMax = 0;
-            }
-            try {
-                this.requireBuyMode = getConfig().getBoolean("RequireBuyMode", true);
-            } catch(Exception e) {
-                this.requireBuyMode = true;
-            }
-            try {
-                tickRate = getConfig().getLong("CheckExpirationsInMins");
-                tickRate = tickRate * 60L * 20L;
-            } catch(Exception e) {
-                tickRate = 6000L;
-            }
-            try {
-                this.requireBuyPerms = getConfig().getBoolean("RequireBuyPerms", false);
-            } catch(Exception e) {
-                this.requireBuyPerms = false;
-            }
-            try {
-                this.requireRentPerms = getConfig().getBoolean("RequireRentPerms", false);
-            } catch(Exception e) {
-                this.requireRentPerms = false;
-            }
-            try {
-                setFormatString(getConfig().getString("DateFormat", "Default"));
-            } catch(Exception e) {
-                this.dateFormatString = "yy/MM/dd h:mma";
-            }
-            loadMessageConfig();
+            regionCounts = new DigiFile<>("RegionCounts", config.dataLoc, new HashMap<>());
+            rentedRegionCounts = new DigiFile<>("RentedRegionCounts", config.dataLoc, new ConcurrentHashMap<>());
+            rentedRegionExpirations = new DigiFile<>("RentedRegionExpirations", config.dataLoc, new ConcurrentHashMap<>());
+            autoRenews = new DigiFile<>("AutoRenews", config.dataLoc, new ConcurrentHashMap<>());
 
             saveConfig();
 
             scheduleRenterTask();
 
-            File file = new File(dataLoc + "RegionActivityLog.txt");
+            File file = new File(config.dataLoc + "RegionActivityLog.txt");
             if (!file.exists()) {
                 try {
                     file.createNewFile();
                 } catch(IOException e) {
-                    getLogger().info("Error creating log file");
+                    getLogger().severe("Error creating log file");
                 }
             }
-            return;
         } catch(Exception e) {
-            e.printStackTrace();
+            getLogger().log(Level.SEVERE, "An error occurred while enabling BuyRegion", e);
         }
-    }
-
-    private void loadMessageConfig() {
-        this.Messages.put("InvalidPriceTime", getConfig().getString("Messages.InvalidPriceTime", "Invalid sign. Invalid price or timespan!"));
-        this.Messages.put("RegionNoExist", getConfig().getString("Messages.RegionNoExist", "Invalid sign. Region doesn't exist!"));
-        this.Messages.put("EvictedFrom", getConfig().getString("Messages.EvictedFrom", "You have been evicted from"));
-        this.Messages.put("InvalidArg", getConfig().getString("Messages.InvalidArg", "Invalid argument. Accepted values: true, false, yes, no, off, on"));
-        this.Messages.put("RenewTurnOff", getConfig().getString("Messages.RenewTurnOff", "Auto-Renew has been turned OFF for you."));
-        this.Messages.put("RenewTurnOn", getConfig().getString("Messages.RenewTurnOn", "Auto-Renew has been turned ON for you."));
-        this.Messages.put("RenewOff", getConfig().getString("Messages.RenewOff", "Auto-Renew is off!"));
-        this.Messages.put("RenewOn", getConfig().getString("Messages.RenewOn", "Auto-Renew is on!"));
-        this.Messages.put("InvalidRenewArgs", getConfig().getString("Messages.InvalidRenewArgs", "Invalid args: /buyregion renew <region>"));
-        this.Messages.put("BuyModeExit", getConfig().getString("Messages.BuyModeExit", "You have exited Buy Mode."));
-        this.Messages.put("BuyModeEnter", getConfig().getString("Messages.BuyModeEnter", "You are now in Buy Mode - right-click the BuyRegion sign!"));
-        this.Messages.put("ToEnterBuyMode", getConfig().getString("Messages.ToEnterBuyMode", "To enter Buy Mode type: /buyregion"));
-        this.Messages.put("BuyModeRent", getConfig().getString("Messages.BuyModeRent", "You must be in Buy Mode to rent this region!"));
-        this.Messages.put("BuyModeBuy", getConfig().getString("Messages.BuyModeBuy", "You must be in Buy Mode to buy this region!"));
-        this.Messages.put("NotEnoughRent", getConfig().getString("Messages.NotEnoughRent", "Not enough money to rent this region!"));
-        this.Messages.put("NotEnoughBuy", getConfig().getString("Messages.NotEnoughBuy", "Not enough money to buy this region!"));
-        this.Messages.put("TransFailed", getConfig().getString("Messages.TransFailed", "Transaction Failed!"));
-        this.Messages.put("Rented", getConfig().getString("Messages.Rented", "Congrats! You have rented"));
-        this.Messages.put("NewBalance", getConfig().getString("Messages.NewBalance", "Your new balance is"));
-        this.Messages.put("RentMax", getConfig().getString("Messages.RentMax", "You are not allowed to rent more regions. Max"));
-        this.Messages.put("RentPerms", getConfig().getString("Messages.RentPerms", "You do not have permission to rent regions."));
-        this.Messages.put("Balance", getConfig().getString("Messages.Balance", "Your balance is"));
-        this.Messages.put("Purchased", getConfig().getString("Messages.Purchased", "Congrats! You have purchased"));
-        this.Messages.put("BuyMax", getConfig().getString("Messages.BuyMax", "You are not allowed to buy more regions. Max"));
-        this.Messages.put("BuyPerms", getConfig().getString("Messages.BuyPerms", "You do not have permission to buy regions."));
-        this.Messages.put("NotRented", getConfig().getString("Messages.NotRented", "is not currently rented."));
-        this.Messages.put("NotRenting", getConfig().getString("Messages.NotRenting", "You are not renting this region. You cannot renew it!"));
-        this.Messages.put("NotEnoughRenew", getConfig().getString("Messages.NotEnoughRenew", "Not enough money to renew rental for this region!"));
-        this.Messages.put("Renewed", getConfig().getString("Messages.Renewed", "Congrats! You have renewed"));
-        this.Messages.put("Expired", getConfig().getString("Messages.Expired", "Your rental has expired for region"));
-        this.Messages.put("Help1", getConfig().getString("Messages.Help1", "BuyRegion Commands"));
-        this.Messages.put("Help2", getConfig().getString("Messages.Help2", "/buyregion - toggles buy mode"));
-        this.Messages.put("Help3", getConfig().getString("Messages.Help3", "/buyregion renew <region> - renews rental of <region>"));
-        this.Messages.put("Help4", getConfig().getString("Messages.Help4", "/buyregion autorenew <true/false> - sets auto-renew for all rented regions"));
     }
 
     public void onDisable() {
         try {
-            saveRegionCounts();
-            saveRentedRegionExpirations();
-            saveRentedRegionCounts();
-            saveAutoRenews();
+            regionCounts.save();
+            rentedRegionExpirations.save();
+            rentedRegionCounts.save();
+            autoRenews.save();
 
             getServer().getScheduler().cancelTasks(this);
         } catch(Exception e) {
@@ -182,68 +108,28 @@ public final class BuyRegion
         }
     }
 
-    private ConcurrentHashMap<String, String> getDefaultMessages() {
-        ConcurrentHashMap<String, String> msgs = new ConcurrentHashMap();
-        msgs.put("InvalidPriceTime", "Invalid sign. Invalid price or timespan!");
-        msgs.put("RegionNoExist", "Invalid sign. Region doesn't exist!");
-        msgs.put("EvictedFrom", "You have been evicted from");
-        msgs.put("InvalidArg", "Invalid argument. Accepted values: true, false, yes, no, off, on");
-        msgs.put("RenewTurnOff", "Auto-Renew has been turned OFF for you.");
-        msgs.put("RenewTurnOn", "Auto-Renew has been turned ON for you.");
-        msgs.put("RenewOff", "Auto-Renew is off!");
-        msgs.put("RenewOn", "Auto-Renew is on!");
-        msgs.put("InvalidRenewArgs", "Invalid args: /buyregion renew <region>");
-        msgs.put("BuyModeExit", "You have exited Buy Mode.");
-        msgs.put("BuyModeEnter", "You are now in Buy Mode - right-click the BuyRegion sign!");
-        msgs.put("ToEnterBuyMode", "To enter Buy Mode type: /buyregion");
-        msgs.put("BuyModeRent", "You must be in Buy Mode to rent this region!");
-        msgs.put("BuyModeBuy", "You must be in Buy Mode to buy this region!");
-        msgs.put("NotEnoughRent", "Not enough money to rent this region!");
-        msgs.put("NotEnoughBuy", "Not enough money to buy this region!");
-        msgs.put("TransFailed", "Transaction Failed!");
-        msgs.put("Rented", "Congrats! You have rented");
-        msgs.put("NewBalance", "Your new balance is");
-        msgs.put("RentMax", "You are not allowed to rent more regions. Max");
-        msgs.put("RentPerms", "You do not have permission to rent regions.");
-        msgs.put("Balance", "Your balance is");
-        msgs.put("Purchased", "Congrats! You have purchased");
-        msgs.put("BuyMax", "You are not allowed to buy more regions. Max");
-        msgs.put("BuyPerms", "You do not have permission to buy regions.");
-        msgs.put("NotRented", "is not currently rented.");
-        msgs.put("NotRenting", "You are not renting this region. You cannot renew it!");
-        msgs.put("NotEnoughRenew", "Not enough money to renew rental for this region!");
-        msgs.put("Renewed", "Congrats! You have renewed");
-        msgs.put("Expired", "Your rental has expired for region");
-        msgs.put("Help1", "BuyRegion Commands");
-        msgs.put("Help2", "/buyregion - toggles buy mode");
-        msgs.put("Help3", "/buyregion renew <region> - renews rental of <region>");
-        msgs.put("Help4", "/buyregion autorenew <true/false> - sets auto-renew for all rented regions");
-
-        return msgs;
-    }
-
     private String getMessage(String key) {
-        return this.Messages.get(key);
+        return this.messages.get(key);
     }
 
-    public void scheduleRenterTask() {
+    private void scheduleRenterTask() {
         getServer().getScheduler().scheduleSyncRepeatingTask(
             this,
             () -> {
-                if (BuyRegion.this.RentedRegionExpirations == null)
-                return;
                 try {
                     long now = new Date().getTime();
-                    for (String regionName : BuyRegion.this.RentedRegionExpirations.keySet()) {
-                        if (BuyRegion.this.RentedRegionExpirations.containsKey(regionName)) {
-                            long regionExp = BuyRegion.this.RentedRegionExpirations.get(regionName);
+                    ConcurrentHashMap<String, Long> expirations = rentedRegionExpirations.get();
+
+                    for (String regionName : expirations.keySet()) {
+                        if (expirations.containsKey(regionName)) {
+                            long regionExp = expirations.get(regionName);
                             if (regionExp <= now) {
                                 boolean renewed = false;
 
-                                RentableRegion rentedRegion = BuyRegion.this.loadRegion(regionName);
-                                if (BuyRegion.this.AutoRenews.containsKey(rentedRegion.renter)) {
-                                    if (BuyRegion.this.AutoRenews.get(rentedRegion.renter)) {
-                                        Player player = BuyRegion.this.getServer().getPlayer(rentedRegion.renter);
+                                RentableRegion rentedRegion = loadRegion(regionName);
+                                if (autoRenews.get().containsKey(rentedRegion.renter)) {
+                                    if (autoRenews.get().get(rentedRegion.renter)) {
+                                        Player player = getServer().getPlayer(rentedRegion.renter);
 
                                         double regionPrice = Double.parseDouble(rentedRegion.signLine3);
                                         if (BuyRegion.econ.getBalance(rentedRegion.renter) >= regionPrice) {
@@ -252,20 +138,20 @@ public final class BuyRegion
                                                 renewed = true;
 
                                                 String[] timeSpan = rentedRegion.signLine4.split(" ");
-                                                long currentExpiration = BuyRegion.this.RentedRegionExpirations.get(regionName);
+                                                long currentExpiration = expirations.get(regionName);
 
-                                                DateResult timeData = BuyRegion.this.parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
-                                                BuyRegion.this.RentedRegionExpirations.put(regionName, timeData.Time);
-                                                BuyRegion.this.saveRentedRegionExpirations();
+                                                DateResult timeData = parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
+                                                expirations.put(regionName, timeData.Time);
+                                                rentedRegionExpirations.save();
 
-                                                BuyRegion.this.logActivity(rentedRegion.renter, " AUTORENEW " + regionName);
+                                                logActivity(rentedRegion.renter, " AUTORENEW " + regionName);
 
-                                                SimpleDateFormat sdf = new SimpleDateFormat(BuyRegion.this.dateFormatString);
+                                                SimpleDateFormat sdf = new SimpleDateFormat(config.dateFormatString);
                                                 if (player != null) {
-                                                    player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Renewed") + " " + regionName + " -> " + sdf.format(new Date(timeData.Time))));
-                                                    player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("NewBalance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
+                                                    player.sendMessage(Notice(getMessage("Renewed") + " " + regionName + " -> " + sdf.format(new Date(timeData.Time))));
+                                                    player.sendMessage(Notice(getMessage("NewBalance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
                                                 }
-                                                World world = BuyRegion.this.getServer().getWorld(rentedRegion.worldName);
+                                                World world = getServer().getWorld(rentedRegion.worldName);
 
                                                 double x = Double.parseDouble(rentedRegion.signLocationX);
                                                 double y = Double.parseDouble(rentedRegion.signLocationY);
@@ -289,17 +175,17 @@ public final class BuyRegion
                                                 }
                                             }
                                         } else if (player != null) {
-                                            player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("NotEnoughRenew") + " " + regionName + "!"));
-                                            player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Balance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
+                                            player.sendMessage(Notice(getMessage("NotEnoughRenew") + " " + regionName + "!"));
+                                            player.sendMessage(Notice(getMessage("Balance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
                                         }
                                     }
                                 }
                                 if (!renewed) {
-                                    BuyRegion.this.RentedRegionExpirations.remove(regionName);
-                                    BuyRegion.this.saveRentedRegionExpirations();
+                                    expirations.remove(regionName);
+                                    rentedRegionExpirations.save();
 
                                     World world = getServer().getWorld(rentedRegion.worldName);
-                                    ProtectedRegion region = BuyRegion.this.getWorldGuardRegion(rentedRegion.worldName, regionName);
+                                    ProtectedRegion region = getWorldGuardRegion(rentedRegion.worldName, regionName);
 
                                     if (region == null)
                                     return;
@@ -309,7 +195,7 @@ public final class BuyRegion
 
                                     region.setMembers(dd);
 
-                                    BuyRegion.this.removeRentedRegionFromCount(rentedRegion.renter);
+                                    removeRentedRegionFromCount(rentedRegion.renter);
 
                                     double x = Double.parseDouble(rentedRegion.signLocationX);
                                     double y = Double.parseDouble(rentedRegion.signLocationY);
@@ -345,18 +231,18 @@ public final class BuyRegion
 
                                             newSign.update();
                                         } catch(Exception e) {
-                                            BuyRegion.this.getLogger().info("RentRegion automatic sign creation failed for region " + rentedRegion.regionName);
+                                            getLogger().severe("RentRegion automatic sign creation failed for region " + rentedRegion.regionName);
                                         }
                                     }
-                                    File regionFile = new File(BuyRegion.signDataLoc + regionName + ".digi");
+                                    File regionFile = new File(config.signDataLoc + regionName + ".digi");
                                     if (regionFile.exists()) {
                                         regionFile.delete();
                                     }
-                                    Player player = BuyRegion.this.getServer().getPlayer(rentedRegion.renter);
+                                    Player player = getServer().getPlayer(rentedRegion.renter);
                                     if ((player != null)) {
-                                        player.sendMessage(BuyRegion.this.Notice(BuyRegion.this.getMessage("Expired") + " " + regionName));
+                                        player.sendMessage(Notice(getMessage("Expired") + " " + regionName));
                                     }
-                                    BuyRegion.this.logActivity(rentedRegion.renter, " EXPIRED " + rentedRegion.regionName);
+                                    logActivity(rentedRegion.renter, " EXPIRED " + rentedRegion.regionName);
                                 }
                             }
                         }
@@ -365,14 +251,14 @@ public final class BuyRegion
                     e.printStackTrace();
                 }
             },
-            tickRate,
-            tickRate
+            config.tickRate,
+            config.tickRate
         );
     }
 
-    public void renewRental(String regionName, String playerName, CommandSender sender) {
+    private void renewRental(String regionName, String playerName, CommandSender sender) {
         try {
-            if (new File(signDataLoc + regionName + ".digi").exists() && (this.RentedRegionExpirations.containsKey(regionName))) {
+            if (new File(config.signDataLoc + regionName + ".digi").exists() && (this.rentedRegionExpirations.get().containsKey(regionName))) {
                 RentableRegion region = loadRegion(regionName);
                 if (sender.getName().equalsIgnoreCase(region.renter)) {
                     double regionPrice = Double.parseDouble(region.signLine3);
@@ -380,16 +266,16 @@ public final class BuyRegion
                         EconomyResponse response = econ.withdrawPlayer(playerName, regionPrice);
                         if (response.transactionSuccess()) {
                             String[] timeSpan = region.signLine4.split(" ");
-                            long currentExpiration = this.RentedRegionExpirations.get(regionName);
+                            long currentExpiration = this.rentedRegionExpirations.get().get(regionName);
 
                             DateResult timeData = parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
 
-                            this.RentedRegionExpirations.put(regionName, timeData.Time);
-                            saveRentedRegionExpirations();
+                            this.rentedRegionExpirations.get().put(regionName, timeData.Time);
+                            rentedRegionExpirations.save();
 
                             logActivity(playerName, " RENEW " + regionName);
 
-                            SimpleDateFormat sdf = new SimpleDateFormat(this.dateFormatString);
+                            SimpleDateFormat sdf = new SimpleDateFormat(config.dateFormatString);
 
                             sender.sendMessage(Notice(getMessage("Renewed") + " " + regionName + " until " + sdf.format(new Date(timeData.Time))));
                             sender.sendMessage(Notice(getMessage("Balance") + " " + econ.getBalance(playerName)));
@@ -430,14 +316,14 @@ public final class BuyRegion
                 sender.sendMessage(Notice(regionName + " " + getMessage("NotRented")));
             }
         } catch(Exception e) {
-            getLogger().info("An error has occurred while renewing rental for: " + regionName);
+            getLogger().severe("An error has occurred while renewing rental for: " + regionName);
         }
     }
 
     private void logActivity(String player, String action) {
         try {
             Date tmp = new Date();
-            File file = new File(dataLoc + "RegionActivityLog.txt");
+            File file = new File(config.dataLoc + "RegionActivityLog.txt");
 
             FileWriter out = new FileWriter(file, true);
             out.write(tmp.toString() + " [" + player + "] " + action + "\r\n");
@@ -448,92 +334,27 @@ public final class BuyRegion
         }
     }
 
-    private void setFormatString(String input) {
-        try {
-            if (input.equalsIgnoreCase("US")) {
-                this.dateFormatString = "MM/dd/yy h:mma";
-            } else if (input.equalsIgnoreCase("EU")) {
-                this.dateFormatString = "dd/MM/yy h:mma";
-            } else {
-                this.dateFormatString = "yy/MM/dd h:mma";
-            }
-        } catch(Exception e) {
-            this.dateFormatString = "yy/MM/dd h:mma";
-        }
-    }
-
-    private void loadRegionCounts() {
-        try {
-            if (new File(dataLoc + "RegionCounts.digi").exists()) {
-                this.RegionCounts = ((HashMap) load(dataLoc, "RegionCounts"));
-            } else {
-                save(this.RegionCounts, dataLoc, "RegionCounts");
-            }
-        } catch(Exception e) {
-            getLogger().info("Error occurred loading RegionCounts.digi");
-            return;
-        }
-    }
-
-    private void loadAutoRenews() {
-        try {
-            if (new File(dataLoc + "AutoRenews" + ".digi").exists()) {
-                this.AutoRenews = ((ConcurrentHashMap) load(dataLoc, "AutoRenews"));
-            } else {
-                save(this.AutoRenews, dataLoc, "AutoRenews");
-            }
-        } catch(Exception e) {
-            getLogger().info("Error occurred loading AutoRenews");
-            return;
-        }
-    }
-
-    private void loadRentedRegionCounts() {
-        try {
-            if (new File(dataLoc + "RentedRegionCounts" + ".digi").exists()) {
-                this.RentedRegionCounts = ((ConcurrentHashMap) load(dataLoc, "RentedRegionCounts"));
-            } else {
-                save(this.RentedRegionCounts, dataLoc, "RentedRegionCounts");
-            }
-        } catch(Exception e) {
-            getLogger().info("Error occurred loading RentedRegionCounts");
-            return;
-        }
-    }
-
-    private void loadRentedRegionExpirations() {
-        try {
-            if (new File(dataLoc + "RentedRegionExpirations" + ".digi").exists()) {
-                this.RentedRegionExpirations = ((ConcurrentHashMap) load(dataLoc, "RentedRegionExpirations"));
-            } else {
-                save(this.RentedRegionExpirations, dataLoc, "RentedRegionExpirations");
-            }
-        } catch(Exception e) {
-            getLogger().info("Error occurred loading RentedRegionExpirations");
-            return;
-        }
-    }
-
     private int getBoughtRegionsCount(String playerName) {
-        if (this.RegionCounts.containsKey(playerName)) {
-            return this.RegionCounts.get(playerName);
+        if (regionCounts.get().containsKey(playerName)) {
+            return this.regionCounts.get().get(playerName);
         }
+
         return 0;
     }
 
     private void removeRentedRegionFromCount(String playerName) {
         try {
-            if (this.RentedRegionCounts.containsKey(playerName)) {
+            if (this.rentedRegionCounts.get().containsKey(playerName)) {
                 int amount = getRentedRegionsCount(playerName);
                 if (amount > 0) {
                     amount--;
                 }
                 if (amount >= 0) {
-                    this.RentedRegionCounts.put(playerName, amount);
+                    this.rentedRegionCounts.get().put(playerName, amount);
                 } else {
-                    this.RentedRegionCounts.put(playerName, 0);
+                    this.rentedRegionCounts.get().put(playerName, 0);
                 }
-                saveRentedRegionCounts();
+                rentedRegionCounts.save();
             }
         } catch(Exception e) {
             getLogger().severe("An error occurred while removing a rented region from a player's count.");
@@ -541,16 +362,16 @@ public final class BuyRegion
     }
 
     private int getRentedRegionsCount(String playerName) {
-        if (this.RentedRegionCounts.containsKey(playerName)) {
-            return this.RentedRegionCounts.get(playerName);
+        if (rentedRegionCounts.get().containsKey(playerName)) {
+            return rentedRegionCounts.get().get(playerName);
         }
         return 0;
     }
 
     private void setBoughtRegionsCount(String playerName, int amount, CommandSender sender) {
         try {
-            this.RegionCounts.put(playerName, amount);
-            saveRegionCounts();
+            this.regionCounts.get().put(playerName, amount);
+            this.regionCounts.save();
             sender.sendMessage(Notice(playerName + " bought regions set to " + amount));
         } catch(Exception e) {
             getLogger().severe("An error occurred in setBoughtRegions");
@@ -559,8 +380,8 @@ public final class BuyRegion
 
     private void setRentedRegionsCount(String playerName, int amount, CommandSender sender) {
         try {
-            this.RentedRegionCounts.put(playerName, amount);
-            saveRentedRegionCounts();
+            rentedRegionCounts.get().put(playerName, amount);
+            rentedRegionCounts.save();
             sender.sendMessage(Notice(playerName + " rented regions set to " + amount));
         } catch(Exception e) {
             getLogger().severe("An error occurred in setRentedRegionsCount");
@@ -594,57 +415,33 @@ public final class BuyRegion
     }
 
     private void addBoughtRegionToCounts(String playerName) {
-        if (this.RegionCounts.containsKey(playerName)) {
-            this.RegionCounts.put(playerName, getBoughtRegionsCount(playerName) + 1);
+        if (this.regionCounts.get().containsKey(playerName)) {
+            this.regionCounts.get().put(playerName, getBoughtRegionsCount(playerName) + 1);
         } else {
-            this.RegionCounts.put(playerName, 1);
+            this.regionCounts.get().put(playerName, 1);
         }
-        saveRegionCounts();
+        regionCounts.save();
     }
 
     private void addRentedRegionToCounts(String playerName) {
-        if (this.RentedRegionCounts.containsKey(playerName)) {
-            this.RentedRegionCounts.put(playerName, getRentedRegionsCount(playerName) + 1);
+        if (this.rentedRegionCounts.get().containsKey(playerName)) {
+            this.rentedRegionCounts.get().put(playerName, getRentedRegionsCount(playerName) + 1);
         } else {
-            this.RentedRegionCounts.put(playerName, 1);
+            this.rentedRegionCounts.get().put(playerName, 1);
         }
-        saveRentedRegionCounts();
+        rentedRegionCounts.save();
     }
 
     private void saveAutoRenews() {
         try {
-            save(this.AutoRenews, dataLoc, "AutoRenews");
+            save(this.autoRenews, config.dataLoc, "autoRenews");
         } catch(Exception e) {
-            getLogger().info("An error has occurred saving AutoRenews");
-        }
-    }
-
-    private void saveRentedRegionCounts() {
-        try {
-            save(this.RentedRegionCounts, dataLoc, "RentedRegionCounts");
-        } catch(Exception e) {
-            getLogger().info("An error has occurred saving Rented Region Counts");
-        }
-    }
-
-    private void saveRegionCounts() {
-        try {
-            save(this.RegionCounts, dataLoc, "RegionCounts");
-        } catch(Exception e) {
-            getLogger().info("An error has occurred saving Region counts.");
-        }
-    }
-
-    private void saveRentedRegionExpirations() {
-        try {
-            save(this.RentedRegionExpirations, dataLoc, "RentedRegionExpirations");
-        } catch(Exception e) {
-            getLogger().info("An error has occurred saving RentedRegionExpirations");
+            getLogger().severe("An error has occurred saving autoRenews");
         }
     }
 
     private void checkPlayerRentedRegionCount(String playerName, CommandSender sender) {
-        if (this.RentedRegionCounts.containsKey(playerName)) {
+        if (this.rentedRegionCounts.get().containsKey(playerName)) {
             sender.sendMessage(Notice(playerName + " has " + getRentedRegionsCount(playerName) + " rented regions."));
         } else {
             sender.sendMessage(Notice(playerName + " has no rented regions."));
@@ -652,24 +449,24 @@ public final class BuyRegion
     }
 
     private void checkPlayerRegionCount(String playerName, CommandSender sender) {
-        if (this.RegionCounts.containsKey(playerName)) {
+        if (this.regionCounts.get().containsKey(playerName)) {
             sender.sendMessage(Notice(playerName + " has " + getBoughtRegionsCount(playerName) + " bought regions."));
         } else {
             sender.sendMessage(Notice(playerName + " has no bought regions."));
         }
     }
 
-    public static void saveRegion(RentableRegion region) {
-        save(region.toString(), signDataLoc, region.regionName);
+    private void saveRegion(RentableRegion region) {
+        save(region.toString(), config.signDataLoc, region.regionName);
     }
 
-    public RentableRegion loadRegion(String regionName) {
-        String tmp = (String) load(signDataLoc, regionName);
+    private RentableRegion loadRegion(String regionName) {
+        String tmp = (String) load(config.signDataLoc, regionName);
 
         return new RentableRegion(tmp);
     }
 
-    public static void save(Object obj, String dataLoc, String file) {
+    private static void save(Object obj, String dataLoc, String file) {
         try {
             ObjectOutputStream tmp = new ObjectOutputStream(new FileOutputStream(dataLoc + file + ".digi"));
             tmp.writeObject(obj);
@@ -680,7 +477,7 @@ public final class BuyRegion
         }
     }
 
-    public static Object load(String dataLoc, String file) {
+    private static Object load(String dataLoc, String file) {
         try {
             ObjectInputStream tmp = new ObjectInputStream(new FileInputStream(dataLoc + file + ".digi"));
             Object rv = tmp.readObject();
@@ -702,10 +499,10 @@ public final class BuyRegion
 
     private void setAutoRenew(String playerName, boolean autoRenew) {
         if (autoRenew) {
-            this.AutoRenews.put(playerName, Boolean.valueOf(true));
+            this.autoRenews.get().put(playerName, Boolean.TRUE);
             saveAutoRenews();
         } else {
-            this.AutoRenews.remove(playerName);
+            this.autoRenews.get().remove(playerName);
             saveAutoRenews();
         }
     }
@@ -726,15 +523,15 @@ public final class BuyRegion
                             sign.setLine(0, "[BuyRegion]");
                             sign.update();
                         }
-                        if (this.requireBuyPerms && !sender.hasPermission("buyregion.buy") && (!sender.isOp())) {
+                        if (config.requireBuyPerms && !sender.hasPermission("buyregion.buy") && (!sender.isOp())) {
                             sender.sendMessage(Notice(getMessage("BuyPerms")));
                             return;
                         }
-                        if (this.buyRegionMax > 0 && getBoughtRegionsCount(playerName) >= this.buyRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
-                            sender.sendMessage(Notice(getMessage("BuyMax") + " " + this.buyRegionMax));
+                        if (this.config.buyRegionMax > 0 && getBoughtRegionsCount(playerName) >= this.config.buyRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
+                            sender.sendMessage(Notice(getMessage("BuyMax") + " " + this.config.buyRegionMax));
                             return;
                         }
-                        if (this.BuyMode.containsKey(playerName) || (!this.requireBuyMode)) {
+                        if (this.BuyMode.containsKey(playerName) || (!config.requireBuyMode)) {
                             double regionPrice = Double.parseDouble(sign.getLine(2));
 
                             String regionName = sign.getLine(1);
@@ -743,7 +540,7 @@ public final class BuyRegion
                             DefaultDomain dd = new DefaultDomain();
                             dd.addPlayer(playerName);
 
-                            RegionManager rm = BuyRegion.this.getWorldGuardRegionManager(world.getName());
+                            RegionManager rm = getWorldGuardRegionManager(world.getName());
                             ProtectedRegion region = rm.getRegion(regionName);
 
                             if (region == null) {
@@ -785,15 +582,15 @@ public final class BuyRegion
                         Player sender = event.getPlayer();
                         String regionName = sign.getLine(1);
                         String playerName = sender.getName();
-                        if (this.requireRentPerms && !sender.hasPermission("buyregion.rent") && (!sender.isOp())) {
+                        if (config.requireRentPerms && !sender.hasPermission("buyregion.rent") && (!sender.isOp())) {
                             sender.sendMessage(Warning(getMessage("RentPerms")));
                             return;
                         }
-                        if (this.rentRegionMax > 0 && getRentedRegionsCount(playerName) >= this.rentRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
-                            sender.sendMessage(Notice(getMessage("RentMax") + " " + this.rentRegionMax));
+                        if (config.rentRegionMax > 0 && getRentedRegionsCount(playerName) >= config.rentRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
+                            sender.sendMessage(Notice(getMessage("RentMax") + " " + config.rentRegionMax));
                             return;
                         }
-                        if (this.BuyMode.containsKey(playerName) || (!this.requireBuyMode)) {
+                        if (this.BuyMode.containsKey(playerName) || (!config.requireBuyMode)) {
                             if (regionName.length() > 0) {
                                 String dateString = sign.getLine(3);
                                 double regionPrice;
@@ -824,7 +621,7 @@ public final class BuyRegion
                                 }
                                 World world = sender.getWorld();
 
-                                RegionManager rm = BuyRegion.this.getWorldGuardRegionManager(world.getName());
+                                RegionManager rm = getWorldGuardRegionManager(world.getName());
                                 ProtectedRegion region = rm.getRegion(regionName);
 
                                 DefaultDomain dd = new DefaultDomain();
@@ -853,7 +650,7 @@ public final class BuyRegion
 
                                         logActivity(playerName, " RENT " + regionName);
 
-                                        SimpleDateFormat sdf = new SimpleDateFormat(this.dateFormatString);
+                                        SimpleDateFormat sdf = new SimpleDateFormat(config.dateFormatString);
 
                                         sign.setLine(0, regionName);
                                         sign.setLine(1, playerName);
@@ -864,8 +661,8 @@ public final class BuyRegion
                                         sender.sendMessage(Notice(getMessage("Rented") + " " + regionName + " -> " + sdf.format(new Date(dateResult.Time))));
                                         sender.sendMessage(Notice(getMessage("NewBalance") + " " + econ.getBalance(playerName)));
 
-                                        this.RentedRegionExpirations.put(regionName, Long.valueOf(dateResult.Time));
-                                        saveRentedRegionExpirations();
+                                        this.rentedRegionExpirations.get().put(regionName, dateResult.Time);
+                                        rentedRegionExpirations.save();
 
                                         this.BuyMode.remove(playerName);
                                     } else {
@@ -884,7 +681,7 @@ public final class BuyRegion
                 }
             }
         } catch(Exception e) {
-            getLogger().info(e.getMessage());
+            getLogger().severe(e.getMessage());
         }
     }
 
@@ -894,7 +691,7 @@ public final class BuyRegion
             if (type.equalsIgnoreCase("d") || type.equalsIgnoreCase("day") || (type.equalsIgnoreCase("days"))) {
                 Calendar cal = Calendar.getInstance();
                 cal.setTime(tmp);
-                cal.add(5, val);
+                cal.add(Calendar.DATE, val);
 
                 return new DateResult(cal.getTime().getTime(), val + " days", false);
             }
@@ -908,7 +705,7 @@ public final class BuyRegion
                 return new DateResult(tmp.getTime() + val * 1000, val + " seconds", false);
             }
             return new DateResult(-1L, "ERROR", true);
-        } catch(Exception e) {}
+        } catch(Exception ignored) {}
         return new DateResult(-1L, "ERROR", true);
     }
 
@@ -932,21 +729,20 @@ public final class BuyRegion
                 return new DateResult(tmp.getTime() + val * 1000, val + " seconds", false);
             }
             return new DateResult(-1L, "ERROR", true);
-        } catch(Exception e) {}
+        } catch(Exception ignored) {}
         return new DateResult(-1L, "ERROR", true);
     }
 
     public class DateResult {
-        public long Time;
-        public String Text;
+        long Time;
+        String Text;
         boolean IsError;
 
-        public DateResult(long time, String text, boolean isError) {
+        DateResult(long time, String text, boolean isError) {
             this.Time = time;
             this.Text = text;
             this.IsError = isError;
         }
-
     }
 
     private boolean setupEconomy() {
@@ -990,8 +786,8 @@ public final class BuyRegion
                 }
                 if (args[0].equalsIgnoreCase("autorenew")) {
                     if (args.length < 2) {
-                        if (this.AutoRenews.containsKey(sender.getName())) {
-                            if (this.AutoRenews.get(sender.getName())) {
+                        if (this.autoRenews.get().containsKey(sender.getName())) {
+                            if (this.autoRenews.get().get(sender.getName())) {
                                 sender.sendMessage(Notice(getMessage("RenewOn")));
                             } else {
                                 sender.sendMessage(Notice(getMessage("RenewOff")));
@@ -1055,7 +851,7 @@ public final class BuyRegion
                         if (args[0].equalsIgnoreCase("buymax")) {
                             try {
                                 if (args.length < 2) {
-                                    sender.sendMessage(Notice("Current BuyRegionMax: " + this.buyRegionMax));
+                                    sender.sendMessage(Notice("Current config.buyRegionMax: " + this.config.buyRegionMax));
                                 } else {
                                     int amount;
 
@@ -1067,11 +863,11 @@ public final class BuyRegion
                                         sender.sendMessage(Warning("Invalid amount. Enter a number for the amount."));
                                         return false;
                                     }
-                                    this.buyRegionMax = amount;
-                                    getConfig().set("BuyRegionMax", amount);
+                                    this.config.buyRegionMax = amount;
+                                    getConfig().set("config.buyRegionMax", amount);
                                     saveConfig();
 
-                                    sender.sendMessage(Notice("BuyRegionMax has been updated to " + amount));
+                                    sender.sendMessage(Notice("config.buyRegionMax has been updated to " + amount));
                                 }
                             } catch(Exception e) {
                                 sender.sendMessage("An error occurred... check all values and try again.");
@@ -1080,7 +876,7 @@ public final class BuyRegion
                         if (args[0].equalsIgnoreCase("rentmax")) {
                             try {
                                 if (args.length < 2) {
-                                    sender.sendMessage(Notice("Current RentRegionMax: " + this.rentRegionMax));
+                                    sender.sendMessage(Notice("Current RentRegionMax: " + config.rentRegionMax));
                                 } else {
                                     int amount;
 
@@ -1092,7 +888,7 @@ public final class BuyRegion
                                         sender.sendMessage(Warning("Invalid amount. Enter a number for the amount."));
                                         return false;
                                     }
-                                    this.rentRegionMax = amount;
+                                    config.rentRegionMax = amount;
                                     getConfig().set("RentRegionMax", Integer.valueOf(amount));
                                     saveConfig();
 
@@ -1108,11 +904,11 @@ public final class BuyRegion
                                     if (args[1].equalsIgnoreCase("true") || (args[1].equalsIgnoreCase("false"))) {
                                         boolean val = Boolean.parseBoolean(args[1]);
                                         if (val) {
-                                            this.requireBuyPerms = true;
-                                            getConfig().set("RequireBuyPerms", Boolean.valueOf(true));
+                                            config.requireBuyPerms = true;
+                                            getConfig().set("RequireBuyPerms", Boolean.TRUE);
                                         } else {
-                                            this.requireBuyPerms = false;
-                                            getConfig().set("RequireBuyPerms", Boolean.valueOf(false));
+                                            config.requireBuyPerms = false;
+                                            getConfig().set("RequireBuyPerms", Boolean.FALSE);
                                         }
                                         sender.sendMessage(Notice("RequireBuyPerms set."));
                                         saveConfig();
@@ -1132,10 +928,10 @@ public final class BuyRegion
                                     if (args[1].equalsIgnoreCase("true") || (args[1].equalsIgnoreCase("false"))) {
                                         boolean val = Boolean.parseBoolean(args[1]);
                                         if (val) {
-                                            this.requireRentPerms = true;
+                                            config.requireRentPerms = true;
                                             getConfig().set("RequireRentPerms", Boolean.TRUE);
                                         } else {
-                                            this.requireRentPerms = false;
+                                            config.requireRentPerms = false;
                                             getConfig().set("RequireRentPerms", Boolean.FALSE);
                                         }
                                         sender.sendMessage(Notice("RequireRentPerms set."));
@@ -1156,10 +952,10 @@ public final class BuyRegion
                                     if (args[1].equalsIgnoreCase("true") || (args[1].equalsIgnoreCase("false"))) {
                                         boolean val = Boolean.parseBoolean(args[1]);
                                         if (val) {
-                                            this.requireBuyMode = true;
+                                            config.requireBuyMode = true;
                                             getConfig().set("RequireBuyMode", Boolean.TRUE);
                                         } else {
-                                            this.requireBuyMode = false;
+                                            config.requireBuyMode = false;
                                             getConfig().set("RequireBuyMode", Boolean.FALSE);
                                         }
                                         sender.sendMessage(Notice("RequireBuyMode set."));
@@ -1177,7 +973,7 @@ public final class BuyRegion
                         } else if (args[0].equalsIgnoreCase("evict")) {
                             if (args.length > 1) {
                                 String regionName = args[1];
-                                if (new File(signDataLoc + regionName + ".digi").exists()) {
+                                if (new File(config.signDataLoc + regionName + ".digi").exists()) {
                                     if (evictRegion(regionName)) {
                                         sender.sendMessage(Notice("Region eviction completed!"));
                                     } else {
@@ -1191,7 +987,7 @@ public final class BuyRegion
                                 return false;
                             }
                         } else {
-                            String[] help = { Notice("Admin Commands:"), Notice("/buyregion buymode <true/false> - sets RequireBuyMode"), Notice("/buyregion buycheck <player> - checks total bought regions for <player>"), Notice("/buyregion rentcheck <player> - checks total rented regions for <player>"), Notice("/buyregion buyset <player> <amount> - sets total bought regions for <player>"), Notice("/buyregion rentset <player> <amount> - sets total rented regions for <player>"), Notice("/buyregion buymax - displays current BuyRegionMax"), Notice("/buyregion buymax <amount> - sets BuyRegionMax"), Notice("/buyregion rentmax - displays current RentRegionMax"), Notice("/buyregion rentmax <amount> - sets RentRegionMax"), Notice("/buyregion evict <region> - evicts renter from <region>") };
+                            String[] help = { Notice("Admin Commands:"), Notice("/buyregion buymode <true/false> - sets RequireBuyMode"), Notice("/buyregion buycheck <player> - checks total bought regions for <player>"), Notice("/buyregion rentcheck <player> - checks total rented regions for <player>"), Notice("/buyregion buyset <player> <amount> - sets total bought regions for <player>"), Notice("/buyregion rentset <player> <amount> - sets total rented regions for <player>"), Notice("/buyregion buymax - displays current config.buyRegionMax"), Notice("/buyregion buymax <amount> - sets config.buyRegionMax"), Notice("/buyregion rentmax - displays current RentRegionMax"), Notice("/buyregion rentmax <amount> - sets RentRegionMax"), Notice("/buyregion evict <region> - evicts renter from <region>") };
                             sender.sendMessage(help);
                         }
                     }
@@ -1205,11 +1001,11 @@ public final class BuyRegion
         try {
             RentableRegion rentedRegion = loadRegion(regionName);
 
-            this.RentedRegionExpirations.remove(regionName);
-            saveRentedRegionExpirations();
+            this.rentedRegionExpirations.get().remove(regionName);
+            rentedRegionExpirations.save();
 
             World world = getServer().getWorld(rentedRegion.worldName);
-            ProtectedRegion region = BuyRegion.this.getWorldGuardRegion(rentedRegion.worldName, regionName);
+            ProtectedRegion region = getWorldGuardRegion(rentedRegion.worldName, regionName);
 
             if (region == null)
             return false;
@@ -1255,15 +1051,15 @@ public final class BuyRegion
 
                     newSign.update();
                 } catch(Exception e) {
-                    getLogger().info("RentRegion automatic sign creation failed for region " + rentedRegion.regionName);
+                    getLogger().severe("RentRegion automatic sign creation failed for region " + rentedRegion.regionName);
                 }
             }
-            File regionFile = new File(signDataLoc + regionName + ".digi");
+            File regionFile = new File(config.signDataLoc + regionName + ".digi");
             if (regionFile.exists()) {
                 regionFile.delete();
             }
             Player player = getServer().getPlayer(rentedRegion.renter);
-            if ((player instanceof Player)) {
+            if ((player != null)) {
                 player.sendMessage(Notice(getMessage("EvictedFrom") + " " + regionName));
             }
             logActivity(rentedRegion.renter, " EVICTED " + rentedRegion.regionName);
@@ -1285,7 +1081,7 @@ public final class BuyRegion
                 } else {
                     String regionName = event.getLine(1);
                     World world = event.getBlock().getWorld();
-                    ProtectedRegion region = BuyRegion.this.getWorldGuardRegion(world.getName(), regionName);
+                    ProtectedRegion region = getWorldGuardRegion(world.getName(), regionName);
 
                     if (region == null) {
                         event.getPlayer().sendMessage(Warning(getMessage("RegionNoExist")));
@@ -1336,7 +1132,7 @@ public final class BuyRegion
         try {
             saveRegion(region);
         } catch(Exception e) {
-            getLogger().info("An error has occurred saving a RentableRegion.");
+            getLogger().severe("An error has occurred saving a RentableRegion.");
         }
     }
 
@@ -1351,67 +1147,5 @@ public final class BuyRegion
 
         return regionManager != null ? regionManager.getRegion(regionName) : null;
     }
-
-    public class RentableRegion {
-        public String worldName;
-        public String regionName;
-        public String renter;
-        public String signLocationX;
-        public String signLocationY;
-        public String signLocationZ;
-        public String signLocationPitch;
-        public String signLocationYaw;
-        public String signDirection;
-        public String signLine1;
-        public String signLine2;
-        public String signLine3;
-        public String signLine4;
-        public String signType;
-
-        public RentableRegion() {
-            this.worldName = "";
-            this.regionName = "";
-            this.renter = "";
-            this.signLocationX = "";
-            this.signLocationY = "";
-            this.signLocationZ = "";
-            this.signLocationPitch = "";
-            this.signLocationYaw = "";
-            this.signDirection = "";
-            this.signLine1 = "";
-            this.signLine2 = "";
-            this.signLine3 = "";
-            this.signLine4 = "";
-            this.signType = "";
-        }
-
-        public RentableRegion(String input) {
-            try {
-                String[] tmp = input.split("%%%");
-                this.worldName = tmp[0];
-                this.regionName = tmp[1];
-                this.renter = tmp[2];
-                this.signLocationX = tmp[3];
-                this.signLocationY = tmp[4];
-                this.signLocationZ = tmp[5];
-                this.signLocationPitch = tmp[6];
-                this.signLocationYaw = tmp[7];
-                this.signDirection = tmp[8];
-                this.signLine1 = tmp[9];
-                this.signLine2 = tmp[10];
-                this.signLine3 = tmp[11];
-                this.signLine4 = tmp[12];
-                this.signType = tmp[13];
-            } catch(Exception e) {
-                BuyRegion.this.getLogger().severe("An error occurred while instantiating a RentableRegion.");
-            }
-        }
-
-        public String toString() {
-            return this.worldName + "%%%" + this.regionName + "%%%" + this.renter + "%%%" + this.signLocationX + "%%%" + this.signLocationY + "%%%" + this.signLocationZ + "%%%" + this.signLocationPitch + "%%%" + this.signLocationYaw + "%%%" + this.signDirection + "%%%" + this.signLine1 + "%%%" + this.signLine2 + "%%%" + this.signLine3 + "%%%" + this.signLine4 + "%%%" + this.signType;
-        }
-
-    }
-
 }
 
