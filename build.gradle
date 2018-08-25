@@ -27,6 +27,11 @@ repositories {
         name = 'vault-repo'
         url = 'http://nexus.hc.to/content/repositories/pub_releases'
     }
+
+    maven {
+        name = 'blackypaw-repo'
+        url = 'http://repo.blackypaw.com/content/groups/public'
+    }
 }
 
 dependencies {

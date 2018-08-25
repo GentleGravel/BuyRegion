@@ -2,6 +2,9 @@ package com.region.buyregion;
 
 import com.region.buyregion.config.BuyRegionConfig;
 import com.region.buyregion.config.DigiFile;
+import com.region.buyregion.helpers.ChatHelper;
+import com.region.buyregion.helpers.LocaleHelper;
+import com.region.buyregion.listeners.RenterTask;
 import com.region.buyregion.regions.RentableRegion;
 import com.sk89q.worldguard.WorldGuard;
 import com.sk89q.worldguard.bukkit.BukkitWorldGuardPlatform;
@@ -39,14 +42,14 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 public final class BuyRegion
     extends JavaPlugin implements Listener {
-    private BuyRegionConfig config;
-    private static Economy econ = null;
+    public BuyRegionConfig config;
+    public LocaleHelper locale;
+    public static Economy econ = null;
     private HashMap<String, Boolean> BuyMode = new HashMap<>();
     private DigiFile<HashMap<String, Integer>> regionCounts;
     private DigiFile<ConcurrentHashMap<String, Integer>> rentedRegionCounts;
-    private DigiFile<ConcurrentHashMap<String, Long>> rentedRegionExpirations;
-    private DigiFile<ConcurrentHashMap<String, Boolean>> autoRenews;
-    private Messages messages = new Messages();
+    public DigiFile<ConcurrentHashMap<String, Long>> rentedRegionExpirations;
+    public DigiFile<ConcurrentHashMap<String, Boolean>> autoRenews;
 
     public static BuyRegion instance;
 
@@ -54,24 +57,19 @@ public final class BuyRegion
     public void onEnable() {
         instance = this;
 
-        getLogger().info("HI");
-
         try {
             if (!setupEconomy()) {
                 getLogger().severe("No Vault-compatible economy plugin found!");
                 getServer().getPluginManager().disablePlugin(this);
                 return;
             }
-
             config = new BuyRegionConfig();
+            locale = new LocaleHelper();
 
             getServer().getPluginManager().registerEvents(this, this);
 
             getLogger().info("Maintained by Luke199");
             getLogger().info("Updated to 1.13 by GentleGravel");
-
-            messages = new Messages();
-            messages.init();
 
             regionCounts = new DigiFile<>("RegionCounts", config.dataLoc, new HashMap<>());
             rentedRegionCounts = new DigiFile<>("RentedRegionCounts", config.dataLoc, new ConcurrentHashMap<>());
@@ -80,14 +78,14 @@ public final class BuyRegion
 
             saveConfig();
 
-            scheduleRenterTask();
+            new RenterTask();
 
             File file = new File(config.dataLoc + "RegionActivityLog.txt");
             if (!file.exists()) {
                 try {
                     file.createNewFile();
                 } catch(IOException e) {
-                    getLogger().severe("Error creating log file");
+                    getLogger().log(Level.SEVERE, "Error creating log file", e);
                 }
             }
         } catch(Exception e) {
@@ -104,156 +102,8 @@ public final class BuyRegion
 
             getServer().getScheduler().cancelTasks(this);
         } catch(Exception e) {
-            getLogger().severe("An error occurred during shutdown.");
+            getLogger().log(Level.SEVERE, "An error occurred during shutdown.", e);
         }
-    }
-
-    private String getMessage(String key) {
-        return this.messages.get(key);
-    }
-
-    private void scheduleRenterTask() {
-        getServer().getScheduler().scheduleSyncRepeatingTask(
-            this,
-            () -> {
-                try {
-                    long now = new Date().getTime();
-                    ConcurrentHashMap<String, Long> expirations = rentedRegionExpirations.get();
-
-                    for (String regionName : expirations.keySet()) {
-                        if (expirations.containsKey(regionName)) {
-                            long regionExp = expirations.get(regionName);
-                            if (regionExp <= now) {
-                                boolean renewed = false;
-
-                                RentableRegion rentedRegion = loadRegion(regionName);
-                                if (autoRenews.get().containsKey(rentedRegion.renter)) {
-                                    if (autoRenews.get().get(rentedRegion.renter)) {
-                                        Player player = getServer().getPlayer(rentedRegion.renter);
-
-                                        double regionPrice = Double.parseDouble(rentedRegion.signLine3);
-                                        if (BuyRegion.econ.getBalance(rentedRegion.renter) >= regionPrice) {
-                                            EconomyResponse response = BuyRegion.econ.withdrawPlayer(rentedRegion.renter, regionPrice);
-                                            if (response.transactionSuccess()) {
-                                                renewed = true;
-
-                                                String[] timeSpan = rentedRegion.signLine4.split(" ");
-                                                long currentExpiration = expirations.get(regionName);
-
-                                                DateResult timeData = parseDateString(Integer.parseInt(timeSpan[0]), timeSpan[1], currentExpiration);
-                                                expirations.put(regionName, timeData.Time);
-                                                rentedRegionExpirations.save();
-
-                                                logActivity(rentedRegion.renter, " AUTORENEW " + regionName);
-
-                                                SimpleDateFormat sdf = new SimpleDateFormat(config.dateFormatString);
-                                                if (player != null) {
-                                                    player.sendMessage(Notice(getMessage("Renewed") + " " + regionName + " -> " + sdf.format(new Date(timeData.Time))));
-                                                    player.sendMessage(Notice(getMessage("NewBalance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
-                                                }
-                                                World world = getServer().getWorld(rentedRegion.worldName);
-
-                                                double x = Double.parseDouble(rentedRegion.signLocationX);
-                                                double y = Double.parseDouble(rentedRegion.signLocationY);
-                                                double z = Double.parseDouble(rentedRegion.signLocationZ);
-                                                float pitch = Float.parseFloat(rentedRegion.signLocationPitch);
-                                                float yaw = Float.parseFloat(rentedRegion.signLocationYaw);
-
-                                                Location signLoc = new Location(world, x, y, z, pitch, yaw);
-
-                                                Block currentBlock = world.getBlockAt(signLoc);
-                                                if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
-                                                    Sign theSign = (Sign) currentBlock.getState();
-
-                                                    theSign.setLine(0, regionName);
-                                                    theSign.setLine(1, rentedRegion.renter);
-                                                    theSign.setLine(2, ChatColor.WHITE + "Until:");
-                                                    theSign.setLine(3, sdf.format(new Date(timeData.Time)));
-                                                    theSign.update();
-
-                                                    theSign.update();
-                                                }
-                                            }
-                                        } else if (player != null) {
-                                            player.sendMessage(Notice(getMessage("NotEnoughRenew") + " " + regionName + "!"));
-                                            player.sendMessage(Notice(getMessage("Balance") + " " + BuyRegion.econ.getBalance(rentedRegion.renter)));
-                                        }
-                                    }
-                                }
-                                if (!renewed) {
-                                    expirations.remove(regionName);
-                                    rentedRegionExpirations.save();
-
-                                    World world = getServer().getWorld(rentedRegion.worldName);
-                                    ProtectedRegion region = getWorldGuardRegion(rentedRegion.worldName, regionName);
-
-                                    if (region == null)
-                                    return;
-                                    DefaultDomain dd = region.getMembers();
-
-                                    dd.removePlayer(rentedRegion.renter);
-
-                                    region.setMembers(dd);
-
-                                    removeRentedRegionFromCount(rentedRegion.renter);
-
-                                    double x = Double.parseDouble(rentedRegion.signLocationX);
-                                    double y = Double.parseDouble(rentedRegion.signLocationY);
-                                    double z = Double.parseDouble(rentedRegion.signLocationZ);
-                                    float pitch = Float.parseFloat(rentedRegion.signLocationPitch);
-                                    float yaw = Float.parseFloat(rentedRegion.signLocationYaw);
-
-                                    Location signLoc = new Location(world, x, y, z, pitch, yaw);
-
-                                    Block currentBlock = world.getBlockAt(signLoc);
-                                    if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
-                                        Sign theSign = (Sign) currentBlock.getState();
-
-                                        theSign.setLine(0, rentedRegion.signLine1);
-                                        theSign.setLine(1, rentedRegion.signLine2);
-                                        theSign.setLine(2, rentedRegion.signLine3);
-                                        theSign.setLine(3, rentedRegion.signLine4);
-
-                                        theSign.update();
-                                    } else {
-                                        try {
-                                            if (rentedRegion.signType == "WALL_SIGN") {
-                                                currentBlock.setType(Material.WALL_SIGN);
-                                            } else {
-                                                currentBlock.setType(Material.SIGN);
-                                            }
-                                            Sign newSign = (Sign) currentBlock.getState();
-
-                                            newSign.setLine(0, rentedRegion.signLine1);
-                                            newSign.setLine(1, rentedRegion.signLine2);
-                                            newSign.setLine(2, rentedRegion.signLine3);
-                                            newSign.setLine(3, rentedRegion.signLine4);
-
-                                            newSign.update();
-                                        } catch(Exception e) {
-                                            getLogger().severe("RentRegion automatic sign creation failed for region " + rentedRegion.regionName);
-                                        }
-                                    }
-                                    File regionFile = new File(config.signDataLoc + regionName + ".digi");
-                                    if (regionFile.exists()) {
-                                        regionFile.delete();
-                                    }
-                                    Player player = getServer().getPlayer(rentedRegion.renter);
-                                    if ((player != null)) {
-                                        player.sendMessage(Notice(getMessage("Expired") + " " + regionName));
-                                    }
-                                    logActivity(rentedRegion.renter, " EXPIRED " + rentedRegion.regionName);
-                                }
-                            }
-                        }
-                    }
-                } catch(Exception e) {
-                    e.printStackTrace();
-                }
-            },
-            config.tickRate,
-            config.tickRate
-        );
     }
 
     private void renewRental(String regionName, String playerName, CommandSender sender) {
@@ -277,8 +127,8 @@ public final class BuyRegion
 
                             SimpleDateFormat sdf = new SimpleDateFormat(config.dateFormatString);
 
-                            sender.sendMessage(Notice(getMessage("Renewed") + " " + regionName + " until " + sdf.format(new Date(timeData.Time))));
-                            sender.sendMessage(Notice(getMessage("Balance") + " " + econ.getBalance(playerName)));
+                            sender.sendMessage(ChatHelper.notice("Renewed", regionName, sdf.format(new Date(timeData.Time))));
+                            sender.sendMessage(ChatHelper.notice("Balance", econ.getBalance(playerName)));
 
                             World world = getServer().getWorld(region.worldName);
 
@@ -303,34 +153,34 @@ public final class BuyRegion
                                 theSign.update();
                             }
                         } else {
-                            sender.sendMessage(Notice(getMessage("TransFailed")));
+                            sender.sendMessage(ChatHelper.notice("TransFailed"));
                         }
                     } else {
-                        sender.sendMessage(Notice(getMessage("NotEnoughRenew")));
-                        sender.sendMessage(Notice(getMessage("Balance") + " " + econ.getBalance(playerName)));
+                        sender.sendMessage(ChatHelper.notice("NotEnoughRenew"));
+                        sender.sendMessage(ChatHelper.notice("Balance", econ.getBalance(playerName)));
                     }
                 } else {
-                    sender.sendMessage(Notice(getMessage("NotRenting")));
+                    sender.sendMessage(ChatHelper.notice("NotRenting"));
                 }
             } else {
-                sender.sendMessage(Notice(regionName + " " + getMessage("NotRented")));
+                sender.sendMessage(ChatHelper.notice("NotRented", regionName));
             }
         } catch(Exception e) {
             getLogger().severe("An error has occurred while renewing rental for: " + regionName);
         }
     }
 
-    private void logActivity(String player, String action) {
+    public void logActivity(String player, String action) {
         try {
             Date tmp = new Date();
             File file = new File(config.dataLoc + "RegionActivityLog.txt");
 
             FileWriter out = new FileWriter(file, true);
-            out.write(tmp.toString() + " [" + player + "] " + action + "\r\n");
+            out.write(String.format("%s [%s] %s\r\n", tmp.toString(), player, action));
             out.flush();
             out.close();
         } catch(IOException e) {
-            getLogger().severe("An error occurred while trying to log activity.");
+            getLogger().log(Level.SEVERE, "An error occurred while trying to log activity.", e);
         }
     }
 
@@ -338,11 +188,10 @@ public final class BuyRegion
         if (regionCounts.get().containsKey(playerName)) {
             return this.regionCounts.get().get(playerName);
         }
-
         return 0;
     }
 
-    private void removeRentedRegionFromCount(String playerName) {
+    public void removeRentedRegionFromCount(String playerName) {
         try {
             if (this.rentedRegionCounts.get().containsKey(playerName)) {
                 int amount = getRentedRegionsCount(playerName);
@@ -357,7 +206,7 @@ public final class BuyRegion
                 rentedRegionCounts.save();
             }
         } catch(Exception e) {
-            getLogger().severe("An error occurred while removing a rented region from a player's count.");
+            getLogger().log(Level.SEVERE, "An error occurred while removing a rented region from a player's count.", e);
         }
     }
 
@@ -372,9 +221,9 @@ public final class BuyRegion
         try {
             this.regionCounts.get().put(playerName, amount);
             this.regionCounts.save();
-            sender.sendMessage(Notice(playerName + " bought regions set to " + amount));
+            sender.sendMessage(ChatHelper.notice(playerName + " bought regions set to " + amount));
         } catch(Exception e) {
-            getLogger().severe("An error occurred in setBoughtRegions");
+            getLogger().log(Level.SEVERE, "An error occurred in setBoughtRegions", e);
         }
     }
 
@@ -382,9 +231,9 @@ public final class BuyRegion
         try {
             rentedRegionCounts.get().put(playerName, amount);
             rentedRegionCounts.save();
-            sender.sendMessage(Notice(playerName + " rented regions set to " + amount));
+            sender.sendMessage(ChatHelper.notice(playerName + " rented regions set to " + amount));
         } catch(Exception e) {
-            getLogger().severe("An error occurred in setRentedRegionsCount");
+            getLogger().log(Level.SEVERE, "An error occurred in setRentedRegionsCount", e);
         }
     }
 
@@ -436,23 +285,23 @@ public final class BuyRegion
         try {
             save(this.autoRenews, config.dataLoc, "autoRenews");
         } catch(Exception e) {
-            getLogger().severe("An error has occurred saving autoRenews");
+            getLogger().log(Level.SEVERE, "An error has occurred saving autoRenews", e);
         }
     }
 
     private void checkPlayerRentedRegionCount(String playerName, CommandSender sender) {
         if (this.rentedRegionCounts.get().containsKey(playerName)) {
-            sender.sendMessage(Notice(playerName + " has " + getRentedRegionsCount(playerName) + " rented regions."));
+            sender.sendMessage(ChatHelper.notice(playerName + " has " + getRentedRegionsCount(playerName) + " rented regions."));
         } else {
-            sender.sendMessage(Notice(playerName + " has no rented regions."));
+            sender.sendMessage(ChatHelper.notice(playerName + " has no rented regions."));
         }
     }
 
     private void checkPlayerRegionCount(String playerName, CommandSender sender) {
         if (this.regionCounts.get().containsKey(playerName)) {
-            sender.sendMessage(Notice(playerName + " has " + getBoughtRegionsCount(playerName) + " bought regions."));
+            sender.sendMessage(ChatHelper.notice(playerName + " has " + getBoughtRegionsCount(playerName) + " bought regions."));
         } else {
-            sender.sendMessage(Notice(playerName + " has no bought regions."));
+            sender.sendMessage(ChatHelper.notice(playerName + " has no bought regions."));
         }
     }
 
@@ -460,7 +309,7 @@ public final class BuyRegion
         save(region.toString(), config.signDataLoc, region.regionName);
     }
 
-    private RentableRegion loadRegion(String regionName) {
+    public RentableRegion loadRegion(String regionName) {
         String tmp = (String) load(config.signDataLoc, regionName);
 
         return new RentableRegion(tmp);
@@ -487,14 +336,6 @@ public final class BuyRegion
             e.printStackTrace();
         }
         return null;
-    }
-
-    private String Notice(String msg) {
-        return ChatColor.AQUA + "[BuyRegion] " + ChatColor.YELLOW + msg;
-    }
-
-    private String Warning(String msg) {
-        return ChatColor.RED + "[BuyRegion] " + ChatColor.YELLOW + msg;
     }
 
     private void setAutoRenew(String playerName, boolean autoRenew) {
@@ -524,11 +365,11 @@ public final class BuyRegion
                             sign.update();
                         }
                         if (config.requireBuyPerms && !sender.hasPermission("buyregion.buy") && (!sender.isOp())) {
-                            sender.sendMessage(Notice(getMessage("BuyPerms")));
+                            sender.sendMessage(ChatHelper.notice("BuyPerms"));
                             return;
                         }
                         if (this.config.buyRegionMax > 0 && getBoughtRegionsCount(playerName) >= this.config.buyRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
-                            sender.sendMessage(Notice(getMessage("BuyMax") + " " + this.config.buyRegionMax));
+                            sender.sendMessage(ChatHelper.notice("BuyMax", this.config.buyRegionMax));
                             return;
                         }
                         if (this.BuyMode.containsKey(playerName) || (!config.requireBuyMode)) {
@@ -544,7 +385,7 @@ public final class BuyRegion
                             ProtectedRegion region = rm.getRegion(regionName);
 
                             if (region == null) {
-                                sender.sendMessage(Notice(getMessage("RegionNoExist")));
+                                sender.sendMessage(ChatHelper.notice("RegionNoExist"));
                                 return;
                             }
                             if (econ.getBalance(playerName) >= regionPrice) {
@@ -555,8 +396,8 @@ public final class BuyRegion
 
                                     addBoughtRegionToCounts(playerName);
 
-                                    sender.sendMessage(Notice(getMessage("Purchased") + " " + regionName + "!"));
-                                    sender.sendMessage(Notice(getMessage("NewBalance") + " " + econ.getBalance(playerName)));
+                                    sender.sendMessage(ChatHelper.notice("Purchased", regionName));
+                                    sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(playerName)));
 
                                     logActivity(playerName, " BUY " + regionName);
 
@@ -568,26 +409,26 @@ public final class BuyRegion
 
                                     this.BuyMode.remove(playerName);
                                 } else {
-                                    sender.sendMessage(Notice(getMessage("TransFailed")));
+                                    sender.sendMessage(ChatHelper.notice("TransFailed"));
                                 }
                             } else {
-                                sender.sendMessage(Warning(getMessage("NotEnoughBuy")));
-                                sender.sendMessage(Warning(getMessage("Balance") + " " + econ.getBalance(playerName)));
+                                sender.sendMessage(ChatHelper.warning("NotEnoughBuy"));
+                                sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(playerName)));
                             }
                         } else {
-                            sender.sendMessage(Warning(getMessage("BuyModeBuy")));
-                            sender.sendMessage(Warning(getMessage("ToEnterBuyMode")));
+                            sender.sendMessage(ChatHelper.warning("BuyModeBuy"));
+                            sender.sendMessage(ChatHelper.warning("ToEnterBuyMode"));
                         }
                     } else if (topLine.length() > 0 && (topLine.equalsIgnoreCase("[RentRegion]"))) {
                         Player sender = event.getPlayer();
                         String regionName = sign.getLine(1);
                         String playerName = sender.getName();
                         if (config.requireRentPerms && !sender.hasPermission("buyregion.rent") && (!sender.isOp())) {
-                            sender.sendMessage(Warning(getMessage("RentPerms")));
+                            sender.sendMessage(ChatHelper.warning("RentPerms"));
                             return;
                         }
                         if (config.rentRegionMax > 0 && getRentedRegionsCount(playerName) >= config.rentRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
-                            sender.sendMessage(Notice(getMessage("RentMax") + " " + config.rentRegionMax));
+                            sender.sendMessage(ChatHelper.notice("RentMax", config.rentRegionMax));
                             return;
                         }
                         if (this.BuyMode.containsKey(playerName) || (!config.requireBuyMode)) {
@@ -628,7 +469,7 @@ public final class BuyRegion
                                 dd.addPlayer(playerName);
 
                                 if (region == null) {
-                                    sender.sendMessage(Notice(getMessage("RegionNoExist")));
+                                    sender.sendMessage(ChatHelper.notice("RegionNoExist"));
                                     sign.setLine(0, "-invalid-");
                                     sign.setLine(1, "<region here>");
                                     sign.setLine(2, "<price here>");
@@ -658,24 +499,24 @@ public final class BuyRegion
                                         sign.setLine(3, sdf.format(new Date(dateResult.Time)));
                                         sign.update();
 
-                                        sender.sendMessage(Notice(getMessage("Rented") + " " + regionName + " -> " + sdf.format(new Date(dateResult.Time))));
-                                        sender.sendMessage(Notice(getMessage("NewBalance") + " " + econ.getBalance(playerName)));
+                                        sender.sendMessage(ChatHelper.notice("Rented", regionName, sdf.format(new Date(dateResult.Time))));
+                                        sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(playerName)));
 
                                         this.rentedRegionExpirations.get().put(regionName, dateResult.Time);
                                         rentedRegionExpirations.save();
 
                                         this.BuyMode.remove(playerName);
                                     } else {
-                                        sender.sendMessage(Warning(getMessage("TransFailed")));
+                                        sender.sendMessage(ChatHelper.warning("TransFailed"));
                                     }
                                 } else {
-                                    sender.sendMessage(Warning(getMessage("NotEnoughRent")));
-                                    sender.sendMessage(Warning(getMessage("Balance") + " " + econ.getBalance(playerName)));
+                                    sender.sendMessage(ChatHelper.warning("NotEnoughRent"));
+                                    sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(playerName)));
                                 }
                             }
                         } else {
-                            sender.sendMessage(Warning(getMessage("BuyModeRent")));
-                            sender.sendMessage(Warning(getMessage("ToEnterBuyMode")));
+                            sender.sendMessage(ChatHelper.warning("BuyModeRent"));
+                            sender.sendMessage(ChatHelper.warning("ToEnterBuyMode"));
                         }
                     }
                 }
@@ -709,13 +550,13 @@ public final class BuyRegion
         return new DateResult(-1L, "ERROR", true);
     }
 
-    private DateResult parseDateString(int val, String type, long start) {
+    public DateResult parseDateString(int val, String type, long start) {
         try {
             Date tmp = new Date(start);
             if (type.equalsIgnoreCase("d") || type.equalsIgnoreCase("day") || (type.equalsIgnoreCase("days"))) {
                 Calendar cal = Calendar.getInstance();
                 cal.setTime(tmp);
-                cal.add(5, val);
+                cal.add(Calendar.DATE, val);
 
                 return new DateResult(cal.getTime().getTime(), val + " days", false);
             }
@@ -734,7 +575,7 @@ public final class BuyRegion
     }
 
     public class DateResult {
-        long Time;
+        public long Time;
         String Text;
         boolean IsError;
 
@@ -743,6 +584,7 @@ public final class BuyRegion
             this.Text = text;
             this.IsError = isError;
         }
+
     }
 
     private boolean setupEconomy() {
@@ -760,14 +602,14 @@ public final class BuyRegion
         try {
             String playerName = sender.getName();
             if (!this.BuyMode.containsKey(playerName)) {
-                this.BuyMode.put(sender.getName(), Boolean.valueOf(true));
-                sender.sendMessage(Notice("BuyModeEnter"));
+                this.BuyMode.put(sender.getName(), Boolean.TRUE);
+                sender.sendMessage(ChatHelper.notice("BuyModeEnter"));
             } else {
                 this.BuyMode.remove(playerName);
-                sender.sendMessage(Notice(getMessage("BuyModeExit")));
+                sender.sendMessage(ChatHelper.notice("BuyModeExit"));
             }
         } catch(Exception e) {
-            getLogger().severe("An error occurred in toggleBuyMode");
+            getLogger().log(Level.SEVERE, "An error occurred in toggleBuyMode", e);
         }
     }
 
@@ -778,7 +620,7 @@ public final class BuyRegion
             } else {
                 if (args[0].equalsIgnoreCase("renew")) {
                     if (args.length < 2) {
-                        sender.sendMessage(Notice(getMessage("InvalidRenewArgs")));
+                        sender.sendMessage(ChatHelper.notice("InvalidRenewArgs"));
                     } else {
                         renewRental(args[1], sender.getName(), sender);
                     }
@@ -788,26 +630,26 @@ public final class BuyRegion
                     if (args.length < 2) {
                         if (this.autoRenews.get().containsKey(sender.getName())) {
                             if (this.autoRenews.get().get(sender.getName())) {
-                                sender.sendMessage(Notice(getMessage("RenewOn")));
+                                sender.sendMessage(ChatHelper.notice("RenewOn"));
                             } else {
-                                sender.sendMessage(Notice(getMessage("RenewOff")));
+                                sender.sendMessage(ChatHelper.notice("RenewOff"));
                             }
                         } else {
-                            sender.sendMessage(Notice(getMessage("RenewOff")));
+                            sender.sendMessage(ChatHelper.notice("RenewOff"));
                         }
                     } else if (args[1].equalsIgnoreCase("true") || args[1].equalsIgnoreCase("yes") || (args[1].equalsIgnoreCase("on"))) {
                         setAutoRenew(sender.getName(), true);
-                        sender.sendMessage(Notice(getMessage("RenewTurnOn")));
+                        sender.sendMessage(ChatHelper.notice("RenewTurnOn"));
                     } else if (args[1].equalsIgnoreCase("false") || args[1].equalsIgnoreCase("no") || (args[1].equalsIgnoreCase("off"))) {
                         setAutoRenew(sender.getName(), false);
-                        sender.sendMessage(Notice(getMessage("RenewTurnOff")));
+                        sender.sendMessage(ChatHelper.notice("RenewTurnOff"));
                     } else {
-                        sender.sendMessage(Notice(getMessage("InvalidArg")));
+                        sender.sendMessage(ChatHelper.notice("InvalidArg"));
                     }
                     return false;
                 }
                 if (args[0].equalsIgnoreCase("help")) {
-                    String[] help = { Notice(getMessage("Help1")), Notice(getMessage("Help2")), Notice(getMessage("Help3")), Notice(getMessage("Help4")) };
+                    String[] help = { ChatHelper.notice("Help1"), ChatHelper.notice("Help2"), ChatHelper.notice("Help3"), ChatHelper.notice("Help4") };
                     sender.sendMessage(help);
                 }
                 if (sender.isOp() || (sender.hasPermission("buyregion.admin"))) {
@@ -817,7 +659,7 @@ public final class BuyRegion
                         checkPlayerRentedRegionCount(args[1], sender);
                     } else if (args[0].equalsIgnoreCase("buyset")) {
                         if (args.length < 3) {
-                            sender.sendMessage(Warning("Invalid args - /buyregion buyset <player> <amount>"));
+                            sender.sendMessage(ChatHelper.warning("Invalid args - /buyregion buyset <player> <amount>"));
                         } else {
                             int amount;
 
@@ -827,14 +669,14 @@ public final class BuyRegion
                                     amount = 0;
                                 }
                             } catch(Exception e) {
-                                sender.sendMessage(Warning("Invalid amount. Enter a number for the amount."));
+                                sender.sendMessage(ChatHelper.warning("Invalid amount. Enter a number for the amount."));
                                 return false;
                             }
                             setBoughtRegionsCount(args[1], amount, sender);
                         }
                     } else if (args[0].equalsIgnoreCase("rentset")) {
                         if (args.length < 3) {
-                            sender.sendMessage(Warning("Invalid args - /buyregion rentset <player> <amount>"));
+                            sender.sendMessage(ChatHelper.warning("Invalid args - /buyregion rentset <player> <amount>"));
                         } else {
                             int amount;
                             try {
@@ -842,7 +684,7 @@ public final class BuyRegion
                                 if (amount < 0)
                                 amount = 0;
                             } catch(Exception e) {
-                                sender.sendMessage(Warning("Invalid amount. Enter a number for the amount."));
+                                sender.sendMessage(ChatHelper.warning("Invalid amount. Enter a number for the amount."));
                                 return false;
                             }
                             setRentedRegionsCount(args[1], amount, sender);
@@ -851,7 +693,7 @@ public final class BuyRegion
                         if (args[0].equalsIgnoreCase("buymax")) {
                             try {
                                 if (args.length < 2) {
-                                    sender.sendMessage(Notice("Current config.buyRegionMax: " + this.config.buyRegionMax));
+                                    sender.sendMessage(ChatHelper.notice("Current config.buyRegionMax: " + this.config.buyRegionMax));
                                 } else {
                                     int amount;
 
@@ -860,14 +702,14 @@ public final class BuyRegion
                                         if (amount < 0)
                                         amount = 0;
                                     } catch(Exception e) {
-                                        sender.sendMessage(Warning("Invalid amount. Enter a number for the amount."));
+                                        sender.sendMessage(ChatHelper.warning("Invalid amount. Enter a number for the amount."));
                                         return false;
                                     }
                                     this.config.buyRegionMax = amount;
                                     getConfig().set("config.buyRegionMax", amount);
                                     saveConfig();
 
-                                    sender.sendMessage(Notice("config.buyRegionMax has been updated to " + amount));
+                                    sender.sendMessage(ChatHelper.notice("config.buyRegionMax has been updated to " + amount));
                                 }
                             } catch(Exception e) {
                                 sender.sendMessage("An error occurred... check all values and try again.");
@@ -876,7 +718,7 @@ public final class BuyRegion
                         if (args[0].equalsIgnoreCase("rentmax")) {
                             try {
                                 if (args.length < 2) {
-                                    sender.sendMessage(Notice("Current RentRegionMax: " + config.rentRegionMax));
+                                    sender.sendMessage(ChatHelper.notice("Current RentRegionMax: " + config.rentRegionMax));
                                 } else {
                                     int amount;
 
@@ -885,17 +727,17 @@ public final class BuyRegion
                                         if (amount < 0)
                                         amount = 0;
                                     } catch(Exception e) {
-                                        sender.sendMessage(Warning("Invalid amount. Enter a number for the amount."));
+                                        sender.sendMessage(ChatHelper.warning("Invalid amount. Enter a number for the amount."));
                                         return false;
                                     }
                                     config.rentRegionMax = amount;
-                                    getConfig().set("RentRegionMax", Integer.valueOf(amount));
+                                    getConfig().set("RentRegionMax", amount);
                                     saveConfig();
 
-                                    sender.sendMessage(Warning("RentRegionMax has been updated to " + amount));
+                                    sender.sendMessage(ChatHelper.warning("RentRegionMax has been updated to " + amount));
                                 }
                             } catch(Exception e) {
-                                sender.sendMessage(Warning("An error occurred... check all values and try again."));
+                                sender.sendMessage(ChatHelper.warning("An error occurred... check all values and try again."));
                             }
                         }
                         if (args[0].equalsIgnoreCase("buyperms")) {
@@ -910,16 +752,16 @@ public final class BuyRegion
                                             config.requireBuyPerms = false;
                                             getConfig().set("RequireBuyPerms", Boolean.FALSE);
                                         }
-                                        sender.sendMessage(Notice("RequireBuyPerms set."));
+                                        sender.sendMessage(ChatHelper.notice("RequireBuyPerms set."));
                                         saveConfig();
                                     } else {
-                                        sender.sendMessage(Warning("Invalid value. Enter 'true' or 'false'"));
+                                        sender.sendMessage(ChatHelper.warning("Invalid value. Enter 'true' or 'false'"));
                                     }
                                 } else {
-                                    sender.sendMessage(Notice("RequireBuyPerms: " + getConfig().getBoolean("RequireBuyPerms")));
+                                    sender.sendMessage(ChatHelper.notice("RequireBuyPerms: " + getConfig().getBoolean("RequireBuyPerms")));
                                 }
                             } catch(Exception e) {
-                                sender.sendMessage(Warning("An error occurred... Syntax: /buyregion buyperms true/false"));
+                                sender.sendMessage(ChatHelper.warning("An error occurred... Syntax: /buyregion buyperms true/false"));
                                 return false;
                             }
                         } else if (args[0].equalsIgnoreCase("rentperms")) {
@@ -934,16 +776,16 @@ public final class BuyRegion
                                             config.requireRentPerms = false;
                                             getConfig().set("RequireRentPerms", Boolean.FALSE);
                                         }
-                                        sender.sendMessage(Notice("RequireRentPerms set."));
+                                        sender.sendMessage(ChatHelper.notice("RequireRentPerms set."));
                                         saveConfig();
                                     } else {
-                                        sender.sendMessage(Warning("Invalid value. Enter 'true' or 'false'"));
+                                        sender.sendMessage(ChatHelper.warning("Invalid value. Enter 'true' or 'false'"));
                                     }
                                 } else {
-                                    sender.sendMessage(Notice("RequireRentPerms: " + getConfig().getBoolean("RequireRentPerms")));
+                                    sender.sendMessage(ChatHelper.notice("RequireRentPerms: " + getConfig().getBoolean("RequireRentPerms")));
                                 }
                             } catch(Exception e) {
-                                sender.sendMessage(Warning("An error occurred... Syntax: /buyregion rentperms true/false"));
+                                sender.sendMessage(ChatHelper.warning("An error occurred... Syntax: /buyregion rentperms true/false"));
                                 return false;
                             }
                         } else if (args[0].equalsIgnoreCase("buymode")) {
@@ -958,16 +800,16 @@ public final class BuyRegion
                                             config.requireBuyMode = false;
                                             getConfig().set("RequireBuyMode", Boolean.FALSE);
                                         }
-                                        sender.sendMessage(Notice("RequireBuyMode set."));
+                                        sender.sendMessage(ChatHelper.notice("RequireBuyMode set."));
                                         saveConfig();
                                     } else {
-                                        sender.sendMessage(Warning("Invalid value. Enter 'true' or 'false'"));
+                                        sender.sendMessage(ChatHelper.warning("Invalid value. Enter 'true' or 'false'"));
                                     }
                                 } else {
-                                    sender.sendMessage(Notice("RequireBuyMode: " + getConfig().getBoolean("RequireBuyMode")));
+                                    sender.sendMessage(ChatHelper.notice("RequireBuyMode: " + getConfig().getBoolean("RequireBuyMode")));
                                 }
                             } catch(Exception e) {
-                                sender.sendMessage(Warning("An error occurred... Syntax: /buyregion buymode true/false"));
+                                sender.sendMessage(ChatHelper.warning("An error occurred... Syntax: /buyregion buymode true/false"));
                                 return false;
                             }
                         } else if (args[0].equalsIgnoreCase("evict")) {
@@ -975,19 +817,19 @@ public final class BuyRegion
                                 String regionName = args[1];
                                 if (new File(config.signDataLoc + regionName + ".digi").exists()) {
                                     if (evictRegion(regionName)) {
-                                        sender.sendMessage(Notice("Region eviction completed!"));
+                                        sender.sendMessage(ChatHelper.notice("Region eviction completed!"));
                                     } else {
-                                        sender.sendMessage(Warning("Region eviction failed."));
+                                        sender.sendMessage(ChatHelper.warning("Region eviction failed."));
                                     }
                                 } else {
-                                    sender.sendMessage(Warning("Region is not currently rented!"));
+                                    sender.sendMessage(ChatHelper.warning("Region is not currently rented!"));
                                 }
                             } else {
-                                sender.sendMessage(Warning("Invalid syntax: /buyregion evict <region>"));
+                                sender.sendMessage(ChatHelper.warning("Invalid syntax: /buyregion evict <region>"));
                                 return false;
                             }
                         } else {
-                            String[] help = { Notice("Admin Commands:"), Notice("/buyregion buymode <true/false> - sets RequireBuyMode"), Notice("/buyregion buycheck <player> - checks total bought regions for <player>"), Notice("/buyregion rentcheck <player> - checks total rented regions for <player>"), Notice("/buyregion buyset <player> <amount> - sets total bought regions for <player>"), Notice("/buyregion rentset <player> <amount> - sets total rented regions for <player>"), Notice("/buyregion buymax - displays current config.buyRegionMax"), Notice("/buyregion buymax <amount> - sets config.buyRegionMax"), Notice("/buyregion rentmax - displays current RentRegionMax"), Notice("/buyregion rentmax <amount> - sets RentRegionMax"), Notice("/buyregion evict <region> - evicts renter from <region>") };
+                            String[] help = { ChatHelper.notice("Admin Commands:"), ChatHelper.notice("/buyregion buymode <true/false> - sets RequireBuyMode"), ChatHelper.notice("/buyregion buycheck <player> - checks total bought regions for <player>"), ChatHelper.notice("/buyregion rentcheck <player> - checks total rented regions for <player>"), ChatHelper.notice("/buyregion buyset <player> <amount> - sets total bought regions for <player>"), ChatHelper.notice("/buyregion rentset <player> <amount> - sets total rented regions for <player>"), ChatHelper.notice("/buyregion buymax - displays current config.buyRegionMax"), ChatHelper.notice("/buyregion buymax <amount> - sets config.buyRegionMax"), ChatHelper.notice("/buyregion rentmax - displays current RentRegionMax"), ChatHelper.notice("/buyregion rentmax <amount> - sets RentRegionMax"), ChatHelper.notice("/buyregion evict <region> - evicts renter from <region>") };
                             sender.sendMessage(help);
                         }
                     }
@@ -1037,7 +879,7 @@ public final class BuyRegion
                 theSign.update();
             } else {
                 try {
-                    if (rentedRegion.signType == "WALL_SIGN") {
+                    if (rentedRegion.signType.equals("WALL_SIGN")) {
                         currentBlock.setType(Material.WALL_SIGN);
                     } else {
                         currentBlock.setType(Material.SIGN);
@@ -1060,13 +902,13 @@ public final class BuyRegion
             }
             Player player = getServer().getPlayer(rentedRegion.renter);
             if ((player != null)) {
-                player.sendMessage(Notice(getMessage("EvictedFrom") + " " + regionName));
+                player.sendMessage(ChatHelper.notice("EvictedFrom", regionName));
             }
             logActivity(rentedRegion.renter, " EVICTED " + rentedRegion.regionName);
 
             return true;
         } catch(Exception e) {
-            getLogger().severe("An error occurred during an eviction.");
+            getLogger().log(Level.SEVERE, "An error occurred during an eviction.", e);
         }
         return false;
     }
@@ -1084,7 +926,7 @@ public final class BuyRegion
                     ProtectedRegion region = getWorldGuardRegion(world.getName(), regionName);
 
                     if (region == null) {
-                        event.getPlayer().sendMessage(Warning(getMessage("RegionNoExist")));
+                        event.getPlayer().sendMessage(ChatHelper.warning("RegionNoExist"));
 
                         event.setLine(0, "-invalid-");
                         return;
@@ -1105,7 +947,7 @@ public final class BuyRegion
                                 }
                             }
                         } catch(Exception e) {
-                            event.getPlayer().sendMessage(Notice(getMessage("InvalidPriceTime")));
+                            event.getPlayer().sendMessage(ChatHelper.notice("InvalidPriceTime"));
                             event.setLine(0, "-invalid-");
 
                             return;
@@ -1116,15 +958,15 @@ public final class BuyRegion
                             event.setLine(0, "[RentRegion]");
                         }
                     } catch(Exception e) {
-                        event.getPlayer().sendMessage(Notice("Invalid amount!"));
+                        event.getPlayer().sendMessage(ChatHelper.notice("Invalid amount!"));
                         event.setLine(0, "-invalid-");
                         return;
                     }
-                    event.getPlayer().sendMessage(Notice("A BuyRegion sign has been created!"));
+                    event.getPlayer().sendMessage(ChatHelper.notice("A BuyRegion sign has been created!"));
                 }
             }
         } catch(Exception e) {
-            getLogger().severe("An error occurred in signChangeMonitor");
+            getLogger().log(Level.SEVERE, "An error occurred in signChangeMonitor", e);
         }
     }
 
@@ -1132,7 +974,7 @@ public final class BuyRegion
         try {
             saveRegion(region);
         } catch(Exception e) {
-            getLogger().severe("An error has occurred saving a RentableRegion.");
+            getLogger().log(Level.SEVERE, "An error has occurred saving a RentableRegion.", e);
         }
     }
 
@@ -1142,10 +984,11 @@ public final class BuyRegion
         return wgPlatform.getRegionContainer().get(wgWorld);
     }
 
-    private ProtectedRegion getWorldGuardRegion(String world, String regionName) {
+    public ProtectedRegion getWorldGuardRegion(String world, String regionName) {
         RegionManager regionManager = getWorldGuardRegionManager(world);
 
         return regionManager != null ? regionManager.getRegion(regionName) : null;
     }
+
 }
 

@@ -50,5 +50,6 @@ public class DigiFile<T> {
     public T get() {
         return o;
     }
+
 }
 

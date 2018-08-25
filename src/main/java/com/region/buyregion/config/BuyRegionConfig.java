@@ -1,9 +1,11 @@
 package com.region.buyregion.config;
 
 import com.region.buyregion.BuyRegion;
-import org.bukkit.configuration.file.FileConfiguration;
 
 import java.io.File;
+import java.util.Locale;
+
+import org.bukkit.configuration.file.FileConfiguration;
 
 public class BuyRegionConfig {
     public final String dataLoc = "plugins" + File.separator + "BuyRegion" + File.separator;
@@ -55,6 +57,7 @@ public class BuyRegionConfig {
         } catch(Exception e) {
             dateFormatString = "yy/MM/dd h:mma";
         }
+        Locale.setDefault(Locale.forLanguageTag(config.getString("Locale", "en")));
 
         config.options().copyDefaults(true);
     }
@@ -72,5 +75,6 @@ public class BuyRegionConfig {
             dateFormatString = "yy/MM/dd h:mma";
         }
     }
+
 }
 
