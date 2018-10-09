@@ -3,6 +3,7 @@ package com.region.buyregion.config;
 import com.region.buyregion.BuyRegion;
 
 import java.io.*;
+import java.util.logging.Level;
 
 public class DigiFile<T> {
     private final String name;
@@ -21,18 +22,23 @@ public class DigiFile<T> {
                 save();
             }
         } catch(Exception e) {
-            BuyRegion.instance.getLogger().info("Error occurred loading " + file.getName());
+            BuyRegion.instance.getLogger().log(Level.SEVERE, "Error occurred loading " + file.getPath(), e);
         }
     }
 
     public void save() {
         try {
+            if (!file.exists()) {
+                file.getParentFile().mkdirs();
+                file.createNewFile();
+            }
+
             ObjectOutputStream tmp = new ObjectOutputStream(new FileOutputStream(file.getPath()));
             tmp.writeObject(o);
             tmp.flush();
             tmp.close();
         } catch(Exception e) {
-            e.printStackTrace();
+            BuyRegion.instance.getLogger().log(Level.SEVERE, "Error occurred saving " + file.getPath(), e);
         }
     }
 

@@ -19,7 +19,13 @@ public class LocaleHelper {
     private File file = new File(folder, String.format("%s.yml", Locale.getDefault().getLanguage()));
 
     public LocaleHelper() {
-        BuyRegion.instance.getLogger().info("Using " + Locale.getDefault().toString());
+        String localeDisplay = Locale.getDefault().getDisplayName();
+
+        if (localeDisplay == null) localeDisplay = Locale.getDefault().getDisplayLanguage();
+        if (localeDisplay == null) localeDisplay = Locale.getDefault().getDisplayCountry();
+        if (localeDisplay == null) localeDisplay = Locale.getDefault().toString();
+
+        BuyRegion.instance.getLogger().info(String.format("Locale: %s", localeDisplay));
 
         copyFiles();
 
@@ -27,7 +33,10 @@ public class LocaleHelper {
     }
 
     private void updateBundle() {
-        if (!folder.exists()) folder.mkdir();
+        if (!folder.exists()) {
+            BuyRegion.instance.getLogger().severe(String.format("Unable to create folder %s", folder.getPath()));
+            return;
+        }
 
         if (!file.exists()) {
             BuyRegion.instance.getLogger().severe(String.format("The file %s does not exist, falling back to English", file.getPath()));
@@ -63,6 +72,8 @@ public class LocaleHelper {
             if (file.exists()) continue;
 
             try {
+                file.getParentFile().mkdirs();
+
                 InputStream stream = BuyRegion.class.getResourceAsStream("/locale/" + filename);
 
                 Files.copy(stream, file.toPath());

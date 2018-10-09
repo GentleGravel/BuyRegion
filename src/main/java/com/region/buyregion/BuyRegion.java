@@ -57,6 +57,9 @@ public final class BuyRegion
     public void onEnable() {
         instance = this;
 
+        getLogger().info("Maintained by Luke199");
+        getLogger().info("Updated to 1.13 by GentleGravel");
+
         try {
             if (!setupEconomy()) {
                 getLogger().severe("No Vault-compatible economy plugin found!");
@@ -67,9 +70,6 @@ public final class BuyRegion
             locale = new LocaleHelper();
 
             getServer().getPluginManager().registerEvents(this, this);
-
-            getLogger().info("Maintained by Luke199");
-            getLogger().info("Updated to 1.13 by GentleGravel");
 
             regionCounts = new DigiFile<>("RegionCounts", config.dataLoc, new HashMap<>());
             rentedRegionCounts = new DigiFile<>("RentedRegionCounts", config.dataLoc, new ConcurrentHashMap<>());
