@@ -5,7 +5,7 @@ import com.region.buyregion.BuyRegion;
 import java.io.*;
 import java.util.logging.Level;
 
-public class DigiFile<T> {
+public class DigiFile<T> implements Serializable {
     private final String name;
     private final File file;
     private T o;
