@@ -317,7 +317,12 @@ public final class BuyRegion
 
     private static void save(Object obj, String dataLoc, String file) {
         try {
-            ObjectOutputStream tmp = new ObjectOutputStream(new FileOutputStream(dataLoc + file + ".digi"));
+            File f = new File(dataLoc + file + ".digi");
+            if (!f.exists()) {
+                f.mkdirs();
+                f.createNewFile();
+            }
+            ObjectOutputStream tmp = new ObjectOutputStream(new FileOutputStream(f));
             tmp.writeObject(obj);
             tmp.flush();
             tmp.close();
