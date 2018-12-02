@@ -16,10 +16,10 @@ NotEnoughRent: Not enough money to rent this region!
 NotEnoughBuy: Not enough money to buy this region!
 TransFailed: Transaction Failed!
 Rented: Congrats! You have rented %s
-NewBalance: Your new balance is $s
+NewBalance: Your new balance is $%s
 RentMax: You are not allowed to rent more regions. Max %s
 RentPerms: You do not have permission to rent regions.
-Balance: Your balance is $s
+Balance: Your balance is $%s
 Purchased: Congrats! You have purchased
 BuyMax: You are not allowed to buy more regions. Max %s
 BuyPerms: You do not have permission to buy regions.
