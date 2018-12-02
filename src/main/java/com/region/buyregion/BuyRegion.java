@@ -319,7 +319,7 @@ public final class BuyRegion
         try {
             File f = new File(dataLoc + file + ".digi");
             if (!f.exists()) {
-                f.mkdirs();
+                f.getParentFile().mkdirs();
                 f.createNewFile();
             }
             ObjectOutputStream tmp = new ObjectOutputStream(new FileOutputStream(f));
