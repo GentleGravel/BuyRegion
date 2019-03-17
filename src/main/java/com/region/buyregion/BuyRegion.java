@@ -24,9 +24,7 @@ import net.md_5.bungee.api.ChatColor;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
 
-import org.bukkit.Location;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.command.Command;
@@ -985,8 +983,13 @@ public final class BuyRegion
 
     private RegionManager getWorldGuardRegionManager(String world) {
         BukkitWorldGuardPlatform wgPlatform = (BukkitWorldGuardPlatform) WorldGuard.getInstance().getPlatform();
-        com.sk89q.worldedit.world.World wgWorld = wgPlatform.getWorldByName(world);
-        return wgPlatform.getRegionContainer().get(wgWorld);
+        try {
+            com.sk89q.worldedit.world.World wgWorld = wgPlatform.getMatcher().getWorldByName(world);
+            return wgPlatform.getRegionContainer().get(wgWorld);
+        } catch (NoSuchMethodError e) {
+            getLogger().log(Level.SEVERE, "Method not found in WorldGuard. Make sure you are using WG 7.0.0 Beta 3 or higher", e);
+            return null;
+        }
     }
 
     public ProtectedRegion getWorldGuardRegion(String world, String regionName) {
