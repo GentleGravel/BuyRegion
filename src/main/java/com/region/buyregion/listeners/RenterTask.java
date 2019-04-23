@@ -1,9 +1,8 @@
 package com.region.buyregion.listeners;
 
-import br.net.fabiozumbi12.RedProtect.Bukkit.RedProtect;
-import br.net.fabiozumbi12.RedProtect.Bukkit.Region;
 import com.region.buyregion.BuyRegion;
 import com.region.buyregion.helpers.ChatHelper;
+import com.region.buyregion.plugins.PluginsHook;
 import com.region.buyregion.regions.RentableRegion;
 
 import java.io.File;
@@ -97,13 +96,11 @@ public class RenterTask {
                             plugin.rentedRegionExpirations.save();
 
                             World world = plugin.getServer().getWorld(rentedRegion.worldName);
-                            Region region = RedProtect.get().getAPI().getRegion(regionName, world);
+                            PluginsHook.PluginRegion region = plugin.getPluginsHooks().getRegion(regionName, world);
 
                             if (region == null)
                             return;
                             region.removeMember(rentedRegion.renter);
-                            if (region.getLeaders().isEmpty())
-                                region.addLeader(RedProtect.get().config.configRoot().region_settings.default_leader);
 
                             plugin.removeRentedRegionFromCount(rentedRegion.renter);
 

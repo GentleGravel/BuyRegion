@@ -45,6 +45,9 @@ public final class BuyRegion
     public DigiFile<ConcurrentHashMap<String, Long>> rentedRegionExpirations;
     public DigiFile<ConcurrentHashMap<String, Boolean>> autoRenews;
     private PluginsHook pluginsHooks;
+    public PluginsHook getPluginsHooks(){
+        return this.pluginsHooks;
+    }
 
     public static BuyRegion instance;
 
