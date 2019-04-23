@@ -5,18 +5,14 @@ import com.region.buyregion.config.DigiFile;
 import com.region.buyregion.helpers.ChatHelper;
 import com.region.buyregion.helpers.LocaleHelper;
 import com.region.buyregion.listeners.RenterTask;
+import com.region.buyregion.plugins.PluginsHook;
+import com.region.buyregion.plugins.RedProtectHook;
+import com.region.buyregion.plugins.WorldGuardHook;
 import com.region.buyregion.regions.RentableRegion;
-import com.sk89q.worldguard.WorldGuard;
-import com.sk89q.worldguard.bukkit.BukkitWorldGuardPlatform;
-import com.sk89q.worldguard.domains.DefaultDomain;
-import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 
 import java.io.*;
 import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.HashMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
@@ -48,6 +44,7 @@ public final class BuyRegion
     private DigiFile<ConcurrentHashMap<String, Integer>> rentedRegionCounts;
     public DigiFile<ConcurrentHashMap<String, Long>> rentedRegionExpirations;
     public DigiFile<ConcurrentHashMap<String, Boolean>> autoRenews;
+    private PluginsHook pluginsHooks;
 
     public static BuyRegion instance;
 
@@ -57,6 +54,7 @@ public final class BuyRegion
 
         getLogger().info("Maintained by Luke199");
         getLogger().info("Updated to 1.13 by GentleGravel");
+        getLogger().info("RedProtect version by FabioZumbi12");
 
         try {
             if (!setupEconomy()) {
@@ -64,6 +62,13 @@ public final class BuyRegion
                 getServer().getPluginManager().disablePlugin(this);
                 return;
             }
+
+            if (!setupPlugins()){
+                getLogger().severe("No regions plugins found!");
+                getServer().getPluginManager().disablePlugin(this);
+                return;
+            }
+
             config = new BuyRegionConfig();
             locale = new LocaleHelper();
 
@@ -102,6 +107,16 @@ public final class BuyRegion
         } catch(Exception e) {
             getLogger().log(Level.SEVERE, "An error occurred during shutdown.", e);
         }
+    }
+
+    private boolean setupPlugins(){
+        if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")){
+            pluginsHooks = new WorldGuardHook();
+        } else
+        if (Bukkit.getPluginManager().isPluginEnabled("RedProtect")){
+            pluginsHooks = new RedProtectHook();
+        }
+        return this.pluginsHooks != null;
     }
 
     private void renewRental(String regionName, String playerName, CommandSender sender) {
@@ -381,21 +396,22 @@ public final class BuyRegion
                             String regionName = sign.getLine(1);
                             World world = sender.getWorld();
 
-                            DefaultDomain dd = new DefaultDomain();
-                            dd.addPlayer(playerName);
-
-                            RegionManager rm = getWorldGuardRegionManager(world.getName());
-                            ProtectedRegion region = rm.getRegion(regionName);
+                            PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world);
 
                             if (region == null) {
                                 sender.sendMessage(ChatHelper.notice("RegionNoExist"));
                                 return;
                             }
+
+                            if (region.isOwner(sender)){
+                                sender.sendMessage(ChatHelper.notice("CantSelf"));
+                                return;
+                            }
+
                             if (econ.getBalance(playerName) >= regionPrice) {
                                 EconomyResponse response = econ.withdrawPlayer(playerName, regionPrice);
                                 if (response.transactionSuccess()) {
-                                    region.setOwners(dd);
-                                    rm.save();
+                                    region.addOwner(sender);
 
                                     addBoughtRegionToCounts(playerName);
 
@@ -465,11 +481,7 @@ public final class BuyRegion
                                 }
                                 World world = sender.getWorld();
 
-                                RegionManager rm = getWorldGuardRegionManager(world.getName());
-                                ProtectedRegion region = rm.getRegion(regionName);
-
-                                DefaultDomain dd = new DefaultDomain();
-                                dd.addPlayer(playerName);
+                                PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world);
 
                                 if (region == null) {
                                     sender.sendMessage(ChatHelper.notice("RegionNoExist"));
@@ -479,14 +491,18 @@ public final class BuyRegion
                                     sign.setLine(3, "<timespan>");
                                     sign.update();
                                     getLogger().info("Invalid [RentRegion] sign cleared at " + sign.getLocation().toString());
-
                                     return;
                                 }
+
+                                if (region.isOwner(sender)){
+                                    sender.sendMessage(ChatHelper.notice("CantSelf"));
+                                    return;
+                                }
+
                                 if (econ.getBalance(playerName) >= regionPrice) {
                                     EconomyResponse response = econ.withdrawPlayer(playerName, regionPrice);
                                     if (response.transactionSuccess()) {
-                                        region.setMembers(dd);
-                                        rm.save();
+                                        region.addMember(sender);
 
                                         addRentedRegionFile(playerName, regionName, sign);
 
@@ -850,15 +866,12 @@ public final class BuyRegion
             rentedRegionExpirations.save();
 
             World world = getServer().getWorld(rentedRegion.worldName);
-            ProtectedRegion region = getWorldGuardRegion(rentedRegion.worldName, regionName);
+            PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world);
 
             if (region == null)
             return false;
-            DefaultDomain dd = region.getMembers();
 
-            dd.removePlayer(rentedRegion.renter);
-
-            region.setMembers(dd);
+            region.removeMember(rentedRegion.renter);
 
             removeRentedRegionFromCount(rentedRegion.renter);
 
@@ -924,16 +937,27 @@ public final class BuyRegion
                 if (!player.hasPermission("buyregion.create") && (!player.isOp())) {
                     event.setLine(0, "-restricted-");
                 } else {
+                    PluginsHook.PluginRegion region = pluginsHooks.getRegion(event.getBlock().getLocation());
                     String regionName = event.getLine(1);
-                    World world = event.getBlock().getWorld();
-                    ProtectedRegion region = getWorldGuardRegion(world.getName(), regionName);
+
+                    if (region != null){
+                        regionName = region.getName();
+                        if (!region.isOwner(player)){
+                            event.getPlayer().sendMessage(ChatHelper.warning("NotOwner"));
+                            event.setLine(0, "-invalid-");
+                            return;
+                        }
+                    } else if (!regionName.isEmpty()){
+                        World world = event.getBlock().getWorld();
+                        region = pluginsHooks.getRegion(regionName, world);
+                    }
 
                     if (region == null) {
                         event.getPlayer().sendMessage(ChatHelper.warning("RegionNoExist"));
-
                         event.setLine(0, "-invalid-");
                         return;
                     }
+                    event.setLine(1, regionName);
                     try {
                         String dateString = event.getLine(3);
                         try {
@@ -980,23 +1004,5 @@ public final class BuyRegion
             getLogger().log(Level.SEVERE, "An error has occurred saving a RentableRegion.", e);
         }
     }
-
-    private RegionManager getWorldGuardRegionManager(String world) {
-        BukkitWorldGuardPlatform wgPlatform = (BukkitWorldGuardPlatform) WorldGuard.getInstance().getPlatform();
-        try {
-            com.sk89q.worldedit.world.World wgWorld = wgPlatform.getMatcher().getWorldByName(world);
-            return wgPlatform.getRegionContainer().get(wgWorld);
-        } catch (NoSuchMethodError e) {
-            getLogger().log(Level.SEVERE, "Method not found in WorldGuard. Make sure you are using WG 7.0.0 Beta 3 or higher", e);
-            return null;
-        }
-    }
-
-    public ProtectedRegion getWorldGuardRegion(String world, String regionName) {
-        RegionManager regionManager = getWorldGuardRegionManager(world);
-
-        return regionManager != null ? regionManager.getRegion(regionName) : null;
-    }
-
 }
 

@@ -24,6 +24,8 @@ Purchased: Congrats! You have purchased
 BuyMax: You are not allowed to buy more regions. Max %s
 BuyPerms: You do not have permission to buy regions.
 NotRented: "%s is not currently rented."
+NotOwner: You is not owner of this region!
+CantSelf: "You can't buy or rent your own regions!"
 NotRenting: You are not renting this region. You cannot renew it!
 NotEnoughRenew: Not enough money to renew rental for this region!
 Renewed: Congrats! You have renewed %s until %s
