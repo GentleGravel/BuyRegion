@@ -2,9 +2,12 @@ name: BuyRegion
 version: @version@
 main: com.region.buyregion.BuyRegion
 api-version: 1.13
-depend: [Vault, WorldGuard]
+depend: [Vault]
+softdepend:
+  - WorldGuardHook
+  - RedProtectHook
 authors: [GentleGravel, Luke199]
-description: WorldGuard Region Sales
+description: WorldGuardHook Region Sales
 commands:
   buyregion:
     description: toggles region buy or rent mode.
