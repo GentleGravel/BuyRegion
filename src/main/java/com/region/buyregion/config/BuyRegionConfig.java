@@ -18,6 +18,8 @@ public class BuyRegionConfig {
     public boolean requireBuyPerms;
     public boolean requireRentPerms;
     public String dateFormatString;
+    public String signHeaderBuy;
+    public String signHeaderRent;
 
     public BuyRegionConfig() {
         FileConfiguration config = BuyRegion.instance.getConfig();
@@ -51,6 +53,16 @@ public class BuyRegionConfig {
             requireRentPerms = config.getBoolean("RequireRentPerms", false);
         } catch(Exception e) {
             requireRentPerms = false;
+        }
+        try {
+            signHeaderBuy = config.getString("SignHeaderBuy", "[BuyRegion]");
+        } catch(Exception e) {
+            signHeaderBuy = "[BuyRegion]";
+        }
+        try {
+            signHeaderRent = config.getString("SignHeaderRent", "[RentRegion]");
+        } catch(Exception e) {
+            signHeaderRent = "[RentRegion]";
         }
         try {
             setFormatString(config.getString("DateFormat", "Default"));

@@ -378,11 +378,11 @@ public final class BuyRegion
                     Sign sign = (Sign) event.getClickedBlock().getState();
 
                     String topLine = sign.getLine(0);
-                    if (topLine.length() > 0 && (topLine.equalsIgnoreCase("[BuyRegion]") || (topLine.equalsIgnoreCase("[WGRSA]")))) {
+                    if (topLine.length() > 0 && (topLine.equalsIgnoreCase(config.signHeaderBuy) || (topLine.equalsIgnoreCase("[WGRSA]")))) {
                         Player sender = event.getPlayer();
                         String playerName = sender.getName();
                         if (topLine.equalsIgnoreCase("[WGRSA]")) {
-                            sign.setLine(0, "[BuyRegion]");
+                            sign.setLine(0, config.signHeaderBuy);
                             sign.update();
                         }
                         if (config.requireBuyPerms && !sender.hasPermission("buyregion.buy") && (!sender.isOp())) {
@@ -441,7 +441,7 @@ public final class BuyRegion
                             sender.sendMessage(ChatHelper.warning("BuyModeBuy"));
                             sender.sendMessage(ChatHelper.warning("ToEnterBuyMode"));
                         }
-                    } else if (topLine.length() > 0 && (topLine.equalsIgnoreCase("[RentRegion]"))) {
+                    } else if (topLine.length() > 0 && (topLine.equalsIgnoreCase(config.signHeaderRent))) {
                         Player sender = event.getPlayer();
                         String regionName = sign.getLine(1);
                         String playerName = sender.getName();
@@ -936,7 +936,7 @@ public final class BuyRegion
     public void signChangeMonitor(SignChangeEvent event) {
         try {
             Player player = event.getPlayer();
-            if (event.getLine(0).equalsIgnoreCase("[WGRSA]") || event.getLine(0).equalsIgnoreCase("[BuyRegion]") || (event.getLine(0).equalsIgnoreCase("[RentRegion]"))) {
+            if (event.getLine(0).equalsIgnoreCase("[WGRSA]") || event.getLine(0).equalsIgnoreCase(config.signHeaderBuy) || (event.getLine(0).equalsIgnoreCase(config.signHeaderRent))) {
                 if (!player.hasPermission("buyregion.create") && (!player.isOp())) {
                     event.setLine(0, "-restricted-");
                 } else {
