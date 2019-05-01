@@ -162,7 +162,7 @@ public final class BuyRegion
 
                                 theSign.setLine(0, regionName);
                                 theSign.setLine(1, playerName);
-                                theSign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil", ""));
+                                theSign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil"));
                                 theSign.setLine(3, sdf.format(new Date(timeData.Time)));
                                 theSign.update();
 
@@ -516,7 +516,7 @@ public final class BuyRegion
 
                                         sign.setLine(0, regionName);
                                         sign.setLine(1, playerName);
-                                        sign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil", ""));
+                                        sign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil"));
                                         sign.setLine(3, sdf.format(new Date(dateResult.Time)));
                                         sign.update();
 

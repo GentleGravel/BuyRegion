@@ -79,7 +79,7 @@ public class RenterTask {
 
                                             theSign.setLine(0, regionName);
                                             theSign.setLine(1, rentedRegion.renter);
-                                            theSign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil", ""));
+                                            theSign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil"));
                                             theSign.setLine(3, sdf.format(new Date(timeData.Time)));
                                             theSign.update();
 
