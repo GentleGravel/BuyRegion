@@ -3,6 +3,8 @@
 
 Locale: en
 
+SignHeaderBuy: [BuyRegion]
+SignHeaderRent: [RentRegion]
 BuyRegionMax: 0
 CheckExpirationsInMins: 5
 RequireBuyMode: true

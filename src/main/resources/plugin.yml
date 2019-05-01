@@ -4,10 +4,10 @@ main: com.region.buyregion.BuyRegion
 api-version: 1.13
 depend: [Vault]
 softdepend:
-  - WorldGuardHook
-  - RedProtectHook
+  - WorldGuard
+  - RedProtect
 authors: [GentleGravel, Luke199]
-description: WorldGuardHook Region Sales
+description: WorldGuard/RedProtect Region Sales
 commands:
   buyregion:
     description: toggles region buy or rent mode.

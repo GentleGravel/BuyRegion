@@ -157,12 +157,12 @@ public final class BuyRegion
                             Location signLoc = new Location(world, x, y, z, pitch, yaw);
 
                             Block currentBlock = world.getBlockAt(signLoc);
-                            if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
+                            if (currentBlock.getType().name().endsWith("_SIGN") || currentBlock.getType().name().endsWith("WALL_SIGN")) {
                                 Sign theSign = (Sign) currentBlock.getState();
 
                                 theSign.setLine(0, regionName);
                                 theSign.setLine(1, playerName);
-                                theSign.setLine(2, ChatColor.WHITE + "Until:");
+                                theSign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil", ""));
                                 theSign.setLine(3, sdf.format(new Date(timeData.Time)));
                                 theSign.update();
 
@@ -271,10 +271,10 @@ public final class BuyRegion
         region.signLocationYaw = String.valueOf(tmpLoc.getYaw());
         region.signDirection = tmpLoc.getDirection().toString();
         region.worldName = sign.getWorld().getName();
-        if (sign.getType() == Material.WALL_SIGN) {
-            region.signType = "WALL_SIGN";
+        if (sign.getType().name().endsWith("WALL_SIGN")) {
+            region.signType = Arrays.stream(Material.values()).filter(s->s.name().endsWith("WALL_SIGN")).findFirst().get().name();
         } else {
-            region.signType = "SIGN";
+            region.signType = Arrays.stream(Material.values()).filter(s->s.name().endsWith("SIGN")).findFirst().get().name();
         }
         saveRentableRegion(region);
     }
@@ -374,18 +374,17 @@ public final class BuyRegion
         try {
             if (event.getAction().name().equals("RIGHT_CLICK_BLOCK")) {
                 Material blockType = event.getClickedBlock().getType();
-                if (blockType == Material.SIGN || (blockType == Material.WALL_SIGN)) {
+                if (blockType.name().endsWith("_SIGN") || blockType.name().endsWith("WALL_SIGN")) {
                     Sign sign = (Sign) event.getClickedBlock().getState();
-
                     String topLine = sign.getLine(0);
-                    if (topLine.length() > 0 && (topLine.equalsIgnoreCase(config.signHeaderBuy) || (topLine.equalsIgnoreCase("[WGRSA]")))) {
+                    if (topLine.length() > 0 && (topLine.equalsIgnoreCase(config.signHeaderBuy) || topLine.equalsIgnoreCase("[WGRSA]"))) {
                         Player sender = event.getPlayer();
                         String playerName = sender.getName();
                         if (topLine.equalsIgnoreCase("[WGRSA]")) {
                             sign.setLine(0, config.signHeaderBuy);
                             sign.update();
                         }
-                        if (config.requireBuyPerms && !sender.hasPermission("buyregion.buy") && (!sender.isOp())) {
+                        if (config.requireBuyPerms && !sender.hasPermission("buyregion.buy") && !sender.isOp()) {
                             sender.sendMessage(ChatHelper.notice("BuyPerms"));
                             return;
                         }
@@ -393,7 +392,7 @@ public final class BuyRegion
                             sender.sendMessage(ChatHelper.notice("BuyMax", this.config.buyRegionMax));
                             return;
                         }
-                        if (this.BuyMode.containsKey(playerName) || (!config.requireBuyMode)) {
+                        if (this.BuyMode.containsKey(playerName) || !config.requireBuyMode) {
                             double regionPrice = Double.parseDouble(sign.getLine(2));
 
                             String regionName = sign.getLine(1);
@@ -423,10 +422,10 @@ public final class BuyRegion
 
                                     logActivity(playerName, " BUY " + regionName);
 
-                                    sign.setLine(0, ChatColor.RED + "## SOLD ##");
-                                    sign.setLine(1, ChatColor.BLACK + "Sold To:");
+                                    sign.setLine(0, ChatColor.translateAlternateColorCodes('&', BuyRegion.instance.locale.get("SignSold")));
+                                    sign.setLine(1, ChatColor.translateAlternateColorCodes('&', BuyRegion.instance.locale.get("SignSoldTo")));
                                     sign.setLine(2, ChatColor.WHITE + playerName);
-                                    sign.setLine(3, ChatColor.RED + "## SOLD ##");
+                                    sign.setLine(3, ChatColor.translateAlternateColorCodes('&', BuyRegion.instance.locale.get("SignSold")));
                                     sign.update();
 
                                     this.BuyMode.remove(playerName);
@@ -517,7 +516,7 @@ public final class BuyRegion
 
                                         sign.setLine(0, regionName);
                                         sign.setLine(1, playerName);
-                                        sign.setLine(2, ChatColor.WHITE + "Until:");
+                                        sign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil", ""));
                                         sign.setLine(3, sdf.format(new Date(dateResult.Time)));
                                         sign.update();
 
@@ -675,7 +674,10 @@ public final class BuyRegion
                     sender.sendMessage(help);
                 }
                 if (sender.isOp() || (sender.hasPermission("buyregion.admin"))) {
-                    if (args[0].equalsIgnoreCase("buycheck")) {
+                    if (args[0].equalsIgnoreCase("reload")) {
+                        reloadConfig();
+                        sender.sendMessage(ChatColor.GREEN + "BuyRegion reloaded");
+                    } else if (args[0].equalsIgnoreCase("buycheck")) {
                         checkPlayerRegionCount(args[1], sender);
                     } else if (args[0].equalsIgnoreCase("rentcheck")) {
                         checkPlayerRentedRegionCount(args[1], sender);
@@ -887,7 +889,7 @@ public final class BuyRegion
             Location signLoc = new Location(world, x, y, z, pitch, yaw);
 
             Block currentBlock = world.getBlockAt(signLoc);
-            if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
+            if (currentBlock.getType().name().endsWith("_SIGN") || currentBlock.getType().name().endsWith("WALL_SIGN")) {
                 Sign theSign = (Sign) currentBlock.getState();
 
                 theSign.setLine(0, rentedRegion.signLine1);
@@ -898,10 +900,10 @@ public final class BuyRegion
                 theSign.update();
             } else {
                 try {
-                    if (rentedRegion.signType.equals("WALL_SIGN")) {
-                        currentBlock.setType(Material.WALL_SIGN);
+                    if (rentedRegion.signType.endsWith("WALL_SIGN")) {
+                        currentBlock.setType(Arrays.stream(Material.values()).filter(s->s.name().endsWith("WALL_SIGN")).findFirst().get());
                     } else {
-                        currentBlock.setType(Material.SIGN);
+                        currentBlock.setType(Arrays.stream(Material.values()).filter(s->s.name().endsWith("_SIGN")).findFirst().get());
                     }
                     Sign newSign = (Sign) currentBlock.getState();
 
@@ -945,7 +947,7 @@ public final class BuyRegion
 
                     if (region != null){
                         regionName = region.getName();
-                        if (!region.isOwner(player)){
+                        if (!region.isOwner(player) && !player.hasPermission("buyregion.admin")){
                             event.getPlayer().sendMessage(ChatHelper.warning("NotOwner"));
                             event.setLine(0, "-invalid-");
                             return;
@@ -968,7 +970,7 @@ public final class BuyRegion
                             if (regionPrice <= 0.0D) {
                                 throw new Exception();
                             }
-                            if (event.getLine(0).equalsIgnoreCase("[RentRegion]")) {
+                            if (event.getLine(0).equalsIgnoreCase(config.signHeaderRent)) {
                                 String[] expiration = dateString.split("\\s");
                                 int i = Integer.parseInt(expiration[0]);
                                 DateResult dateResult = parseDateString(i, expiration[1]);
@@ -982,10 +984,10 @@ public final class BuyRegion
 
                             return;
                         }
-                        if (!event.getLine(0).equalsIgnoreCase("[RentRegion]")) {
-                            event.setLine(0, "[BuyRegion]");
+                        if (!event.getLine(0).equalsIgnoreCase(config.signHeaderRent)) {
+                            event.setLine(0, config.signHeaderBuy);
                         } else {
-                            event.setLine(0, "[RentRegion]");
+                            event.setLine(0, config.signHeaderRent);
                         }
                     } catch(Exception e) {
                         event.getPlayer().sendMessage(ChatHelper.notice("Invalid amount!"));

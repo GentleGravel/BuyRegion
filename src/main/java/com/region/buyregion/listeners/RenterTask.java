@@ -7,6 +7,7 @@ import com.region.buyregion.regions.RentableRegion;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -73,12 +74,12 @@ public class RenterTask {
                                         Location signLoc = new Location(world, x, y, z, pitch, yaw);
 
                                         Block currentBlock = world.getBlockAt(signLoc);
-                                        if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
+                                        if (currentBlock.getType().name().endsWith("_SIGN") || currentBlock.getType().name().endsWith("WALL_SIGN")) {
                                             Sign theSign = (Sign) currentBlock.getState();
 
                                             theSign.setLine(0, regionName);
                                             theSign.setLine(1, rentedRegion.renter);
-                                            theSign.setLine(2, ChatColor.WHITE + "Until:");
+                                            theSign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil", ""));
                                             theSign.setLine(3, sdf.format(new Date(timeData.Time)));
                                             theSign.update();
 
@@ -113,7 +114,7 @@ public class RenterTask {
                             Location signLoc = new Location(world, x, y, z, pitch, yaw);
 
                             Block currentBlock = world.getBlockAt(signLoc);
-                            if (currentBlock.getType() == Material.SIGN || (currentBlock.getType() == Material.WALL_SIGN)) {
+                            if (currentBlock.getType().name().endsWith("_SIGN") || currentBlock.getType().name().endsWith("WALL_SIGN")) {
                                 Sign theSign = (Sign) currentBlock.getState();
 
                                 theSign.setLine(0, rentedRegion.signLine1);
@@ -124,10 +125,10 @@ public class RenterTask {
                                 theSign.update();
                             } else {
                                 try {
-                                    if (rentedRegion.signType.equals("WALL_SIGN")) {
-                                        currentBlock.setType(Material.WALL_SIGN);
+                                    if (rentedRegion.signType.endsWith("WALL_SIGN")) {
+                                        currentBlock.setType(Arrays.stream(Material.values()).filter(s->s.name().endsWith("WALL_SIGN")).findFirst().get());
                                     } else {
-                                        currentBlock.setType(Material.SIGN);
+                                        currentBlock.setType(Arrays.stream(Material.values()).filter(s->s.name().endsWith("_SIGN")).findFirst().get());
                                     }
                                     Sign newSign = (Sign) currentBlock.getState();
 

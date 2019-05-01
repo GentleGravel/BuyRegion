@@ -30,6 +30,9 @@ NotRenting: You are not renting this region. You cannot renew it!
 NotEnoughRenew: Not enough money to renew rental for this region!
 Renewed: Congrats! You have renewed %s until %s
 Expired: Your rental has expired for region %s
+SignUntil: "Until:"
+SignSold: "&c## SOLD ##"
+SignSoldTo: "Sold To:"
 Help1: BuyRegion Commands
 Help2: /buyregion - toggles buy mode
 Help3: /buyregion renew <region> - renews rental of <region>

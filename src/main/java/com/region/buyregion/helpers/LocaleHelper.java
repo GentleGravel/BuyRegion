@@ -50,7 +50,7 @@ public class LocaleHelper {
         return bundle.getString(key);
     }
 
-    String get(String key, Object... args) {
+    public String get(String key, Object... args) {
         if (!bundle.contains(key)) return key;
 
         try {
