@@ -676,6 +676,8 @@ public final class BuyRegion
                 if (sender.isOp() || (sender.hasPermission("buyregion.admin"))) {
                     if (args[0].equalsIgnoreCase("reload")) {
                         reloadConfig();
+                        config = new BuyRegionConfig();
+                        locale = new LocaleHelper();
                         sender.sendMessage(ChatColor.GREEN + "BuyRegion reloaded");
                     } else if (args[0].equalsIgnoreCase("buycheck")) {
                         checkPlayerRegionCount(args[1], sender);
