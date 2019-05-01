@@ -678,7 +678,7 @@ public final class BuyRegion
                         reloadConfig();
                         config = new BuyRegionConfig();
                         locale = new LocaleHelper();
-                        sender.sendMessage(ChatColor.GREEN + "BuyRegion reloaded");
+                        sender.sendMessage(ChatHelper.notice("BuyRegion reloaded"));
                     } else if (args[0].equalsIgnoreCase("buycheck")) {
                         checkPlayerRegionCount(args[1], sender);
                     } else if (args[0].equalsIgnoreCase("rentcheck")) {
