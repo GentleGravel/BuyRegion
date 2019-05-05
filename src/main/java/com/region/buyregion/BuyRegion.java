@@ -122,14 +122,14 @@ public final class BuyRegion
         return this.pluginsHooks != null;
     }
 
-    private void renewRental(String regionName, String playerName, CommandSender sender) {
+    private void renewRental(String regionName, Player sender) {
         try {
             if (new File(config.signDataLoc + regionName + ".digi").exists() && (this.rentedRegionExpirations.get().containsKey(regionName))) {
                 RentableRegion region = loadRegion(regionName);
                 if (sender.getName().equalsIgnoreCase(region.renter)) {
                     double regionPrice = Double.parseDouble(region.signLine3);
-                    if (econ.getBalance(playerName) >= regionPrice) {
-                        EconomyResponse response = econ.withdrawPlayer(playerName, regionPrice);
+                    if (econ.getBalance(sender) >= regionPrice) {
+                        EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
                         if (response.transactionSuccess()) {
                             String[] timeSpan = region.signLine4.split(" ");
                             long currentExpiration = this.rentedRegionExpirations.get().get(regionName);
@@ -139,12 +139,12 @@ public final class BuyRegion
                             this.rentedRegionExpirations.get().put(regionName, timeData.Time);
                             rentedRegionExpirations.save();
 
-                            logActivity(playerName, " RENEW " + regionName);
+                            logActivity(sender.getName(), " RENEW " + regionName);
 
                             SimpleDateFormat sdf = new SimpleDateFormat(config.dateFormatString);
 
                             sender.sendMessage(ChatHelper.notice("Renewed", regionName, sdf.format(new Date(timeData.Time))));
-                            sender.sendMessage(ChatHelper.notice("Balance", econ.getBalance(playerName)));
+                            sender.sendMessage(ChatHelper.notice("Balance", econ.getBalance(sender)));
 
                             World world = getServer().getWorld(region.worldName);
 
@@ -161,7 +161,7 @@ public final class BuyRegion
                                 Sign theSign = (Sign) currentBlock.getState();
 
                                 theSign.setLine(0, regionName);
-                                theSign.setLine(1, playerName);
+                                theSign.setLine(1, sender.getName());
                                 theSign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil"));
                                 theSign.setLine(3, sdf.format(new Date(timeData.Time)));
                                 theSign.update();
@@ -173,7 +173,7 @@ public final class BuyRegion
                         }
                     } else {
                         sender.sendMessage(ChatHelper.notice("NotEnoughRenew"));
-                        sender.sendMessage(ChatHelper.notice("Balance", econ.getBalance(playerName)));
+                        sender.sendMessage(ChatHelper.notice("Balance", econ.getBalance(sender)));
                     }
                 } else {
                     sender.sendMessage(ChatHelper.notice("NotRenting"));
@@ -410,15 +410,15 @@ public final class BuyRegion
                                 return;
                             }
 
-                            if (econ.getBalance(playerName) >= regionPrice) {
-                                EconomyResponse response = econ.withdrawPlayer(playerName, regionPrice);
+                            if (econ.getBalance(sender) >= regionPrice) {
+                                EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
                                 if (response.transactionSuccess()) {
                                     region.addOwner(sender);
 
                                     addBoughtRegionToCounts(playerName);
 
                                     sender.sendMessage(ChatHelper.notice("Purchased", regionName));
-                                    sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(playerName)));
+                                    sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(sender)));
 
                                     logActivity(playerName, " BUY " + regionName);
 
@@ -434,7 +434,7 @@ public final class BuyRegion
                                 }
                             } else {
                                 sender.sendMessage(ChatHelper.warning("NotEnoughBuy"));
-                                sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(playerName)));
+                                sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(sender)));
                             }
                         } else {
                             sender.sendMessage(ChatHelper.warning("BuyModeBuy"));
@@ -501,8 +501,8 @@ public final class BuyRegion
                                     return;
                                 }
 
-                                if (econ.getBalance(playerName) >= regionPrice) {
-                                    EconomyResponse response = econ.withdrawPlayer(playerName, regionPrice);
+                                if (econ.getBalance(sender) >= regionPrice) {
+                                    EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
                                     if (response.transactionSuccess()) {
                                         region.addMember(sender);
 
@@ -521,7 +521,7 @@ public final class BuyRegion
                                         sign.update();
 
                                         sender.sendMessage(ChatHelper.notice("Rented", regionName, sdf.format(new Date(dateResult.Time))));
-                                        sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(playerName)));
+                                        sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(sender)));
 
                                         this.rentedRegionExpirations.get().put(regionName, dateResult.Time);
                                         rentedRegionExpirations.save();
@@ -532,7 +532,7 @@ public final class BuyRegion
                                     }
                                 } else {
                                     sender.sendMessage(ChatHelper.warning("NotEnoughRent"));
-                                    sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(playerName)));
+                                    sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(sender)));
                                 }
                             }
                         } else {
@@ -605,18 +605,16 @@ public final class BuyRegion
             this.Text = text;
             this.IsError = isError;
         }
-
     }
 
     private boolean setupEconomy() {
         if (getServer().getPluginManager().getPlugin("Vault") == null)
-        return false;
+            return false;
         RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
         if (rsp == null)
-        return false;
+            return false;
         econ = rsp.getProvider();
-
-        return econ != null;
+        return true;
     }
 
     private void toggleBuyMode(CommandSender sender) {
@@ -639,11 +637,11 @@ public final class BuyRegion
             if (args.length == 0) {
                 toggleBuyMode(sender);
             } else {
-                if (args[0].equalsIgnoreCase("renew")) {
+                if (args[0].equalsIgnoreCase("renew") && sender instanceof Player) {
                     if (args.length < 2) {
                         sender.sendMessage(ChatHelper.notice("InvalidRenewArgs"));
                     } else {
-                        renewRental(args[1], sender.getName(), sender);
+                        renewRental(args[1], (Player) sender);
                     }
                     return false;
                 }
