@@ -14,6 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import net.md_5.bungee.api.ChatColor;
 import net.milkbowl.vault.economy.EconomyResponse;
 
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -47,6 +48,14 @@ public class RenterTask {
                                 if (BuyRegion.econ.getBalance(rentedRegion.renter) >= regionPrice) {
                                     EconomyResponse response = BuyRegion.econ.withdrawPlayer(rentedRegion.renter, regionPrice);
                                     if (response.transactionSuccess()) {
+                                        if (plugin.config.payRentOwners){
+                                            PluginsHook.PluginRegion pRegion = plugin.pluginsHooks.getRegion(regionName, rentedRegion.worldName);
+                                            if (pRegion != null && pRegion.getOwners().size() > 0) {
+                                                double v = regionPrice / pRegion.getOwners().size();
+                                                pRegion.getOwners().forEach(o->BuyRegion.econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
+                                            }
+                                        }
+
                                         renewed = true;
 
                                         String[] timeSpan = rentedRegion.signLine4.split(" ");
@@ -97,7 +106,7 @@ public class RenterTask {
                             plugin.rentedRegionExpirations.save();
 
                             World world = plugin.getServer().getWorld(rentedRegion.worldName);
-                            PluginsHook.PluginRegion region = plugin.getPluginsHooks().getRegion(regionName, world);
+                            PluginsHook.PluginRegion region = plugin.getPluginsHooks().getRegion(regionName, rentedRegion.worldName);
 
                             if (region == null)
                             return;

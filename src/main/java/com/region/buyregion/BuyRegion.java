@@ -44,7 +44,7 @@ public final class BuyRegion
     private DigiFile<ConcurrentHashMap<String, Integer>> rentedRegionCounts;
     public DigiFile<ConcurrentHashMap<String, Long>> rentedRegionExpirations;
     public DigiFile<ConcurrentHashMap<String, Boolean>> autoRenews;
-    private PluginsHook pluginsHooks;
+    public PluginsHook pluginsHooks;
     public PluginsHook getPluginsHooks(){
         return this.pluginsHooks;
     }
@@ -131,6 +131,14 @@ public final class BuyRegion
                     if (econ.getBalance(sender) >= regionPrice) {
                         EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
                         if (response.transactionSuccess()) {
+                            if (config.payRentOwners){
+                                PluginsHook.PluginRegion pRegion = pluginsHooks.getRegion(regionName, sender.getWorld().getName());
+                                if (pRegion != null && pRegion.getOwners().size() > 0) {
+                                    double v = regionPrice / pRegion.getOwners().size();
+                                    pRegion.getOwners().forEach(o->econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
+                                }
+                            }
+
                             String[] timeSpan = region.signLine4.split(" ");
                             long currentExpiration = this.rentedRegionExpirations.get().get(regionName);
 
@@ -398,7 +406,7 @@ public final class BuyRegion
                             String regionName = sign.getLine(1);
                             World world = sender.getWorld();
 
-                            PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world);
+                            PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world.getName());
 
                             if (region == null) {
                                 sender.sendMessage(ChatHelper.notice("RegionNoExist"));
@@ -413,6 +421,11 @@ public final class BuyRegion
                             if (econ.getBalance(sender) >= regionPrice) {
                                 EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
                                 if (response.transactionSuccess()) {
+                                    if (region.getOwners().size() > 0){
+                                        double v = regionPrice / region.getOwners().size();
+                                        region.getOwners().forEach(o->econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
+                                    }
+
                                     region.addOwner(sender);
 
                                     addBoughtRegionToCounts(playerName);
@@ -483,7 +496,7 @@ public final class BuyRegion
                                 }
                                 World world = sender.getWorld();
 
-                                PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world);
+                                PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world.getName());
 
                                 if (region == null) {
                                     sender.sendMessage(ChatHelper.notice("RegionNoExist"));
@@ -504,6 +517,13 @@ public final class BuyRegion
                                 if (econ.getBalance(sender) >= regionPrice) {
                                     EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
                                     if (response.transactionSuccess()) {
+                                        if (config.payRentOwners){
+                                            if (region.getOwners().size() > 0) {
+                                                double v = regionPrice / region.getOwners().size();
+                                                region.getOwners().forEach(o->econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
+                                            }
+                                        }
+
                                         region.addMember(sender);
 
                                         addRentedRegionFile(playerName, regionName, sign);
@@ -871,7 +891,7 @@ public final class BuyRegion
             rentedRegionExpirations.save();
 
             World world = getServer().getWorld(rentedRegion.worldName);
-            PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world);
+            PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, rentedRegion.worldName);
 
             if (region == null)
             return false;
@@ -954,7 +974,7 @@ public final class BuyRegion
                         }
                     } else if (!regionName.isEmpty()){
                         World world = event.getBlock().getWorld();
-                        region = pluginsHooks.getRegion(regionName, world);
+                        region = pluginsHooks.getRegion(regionName, world.getName());
                     }
 
                     if (region == null) {

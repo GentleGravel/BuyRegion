@@ -4,8 +4,11 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
+import java.util.List;
+import java.util.UUID;
+
 public interface PluginsHook {
-    PluginRegion getRegion(String regionName, World world);
+    PluginRegion getRegion(String regionName, String world);
     PluginRegion getRegion(Location location);
 
     //Wrapper for plugin region
@@ -16,6 +19,7 @@ public interface PluginsHook {
         void addOwner(Player owner);
         void removeMember(String owner);
         boolean isOwner(Player player);
+        List<UUID> getOwners();
         String getName();
     }
 }

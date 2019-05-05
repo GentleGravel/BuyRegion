@@ -20,6 +20,7 @@ public class BuyRegionConfig {
     public String dateFormatString;
     public String signHeaderBuy;
     public String signHeaderRent;
+    public boolean payRentOwners;
 
     public BuyRegionConfig() {
         FileConfiguration config = BuyRegion.instance.getConfig();
@@ -53,6 +54,11 @@ public class BuyRegionConfig {
             requireRentPerms = config.getBoolean("RequireRentPerms", false);
         } catch(Exception e) {
             requireRentPerms = false;
+        }
+        try {
+            payRentOwners = config.getBoolean("PayRentOwners", true);
+        } catch(Exception e) {
+            payRentOwners = true;
         }
         try {
             signHeaderBuy = config.getString("SignHeaderBuy", "[BuyRegion]");

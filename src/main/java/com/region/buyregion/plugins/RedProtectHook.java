@@ -2,15 +2,21 @@ package com.region.buyregion.plugins;
 
 import br.net.fabiozumbi12.RedProtect.Bukkit.RedProtect;
 import br.net.fabiozumbi12.RedProtect.Bukkit.Region;
+import br.net.fabiozumbi12.RedProtect.Bukkit.helpers.RedProtectUtil;
+import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 public class RedProtectHook implements PluginsHook {
     @Override
-    public PluginRegion getRegion(String regionName, World world) {
-        if (RedProtect.get().getAPI().getRegion(regionName, world) != null){
-            return new RedRegion(RedProtect.get().getAPI().getRegion(regionName, world));
+    public PluginRegion getRegion(String regionName, String world) {
+        if (Bukkit.getWorld(world) != null && RedProtect.get().getAPI().getRegion(regionName, Bukkit.getWorld(world)) != null){
+            return new RedRegion(RedProtect.get().getAPI().getRegion(regionName, Bukkit.getWorld(world)));
         }
         return null;
     }
@@ -63,6 +69,11 @@ public class RedProtectHook implements PluginsHook {
         @Override
         public boolean isOwner(Player player) {
             return region.isLeader(player);
+        }
+
+        @Override
+        public List<UUID> getOwners() {
+            return region.getLeaders().stream().filter(l-> RedProtectUtil.isUUIDs(l.getUUID())).map(l->UUID.fromString(l.getUUID())).collect(Collectors.toList());
         }
 
         @Override

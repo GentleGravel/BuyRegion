@@ -11,5 +11,6 @@ RequireBuyMode: true
 RentRegionMax: 0
 RequireBuyPerms: false
 RequireRentPerms: false
+PayRentOwners: true
 # DateFormat values: Default, US or EU
 DateFormat: Default

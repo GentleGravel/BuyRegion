@@ -14,8 +14,12 @@ import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 import static org.bukkit.Bukkit.getLogger;
 
@@ -33,8 +37,8 @@ public class WorldGuardHook implements PluginsHook{
     }
 
     @Override
-    public PluginRegion getRegion(String regionName, World world) {
-        regionManager = getWorldGuardRegionManager(world.getName());
+    public PluginRegion getRegion(String regionName, String world) {
+        regionManager = getWorldGuardRegionManager(world);
         if (regionManager != null && regionManager.getRegion(regionName) != null){
             return new WERegion(regionManager.getRegion(regionName));
         }
@@ -97,6 +101,11 @@ public class WorldGuardHook implements PluginsHook{
         @Override
         public boolean isOwner(Player player) {
             return region.isOwner(WorldGuardPlugin.inst().wrapPlayer(player));
+        }
+
+        @Override
+        public List<UUID> getOwners() {
+            return new ArrayList<>(region.getOwners().getUniqueIds());
         }
 
         @Override
