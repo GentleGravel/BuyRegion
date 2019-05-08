@@ -9,18 +9,14 @@ import com.region.buyregion.plugins.PluginsHook;
 import com.region.buyregion.plugins.RedProtectHook;
 import com.region.buyregion.plugins.WorldGuardHook;
 import com.region.buyregion.regions.RentableRegion;
-
-import java.io.*;
-import java.text.SimpleDateFormat;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.logging.Level;
-
+import com.sk89q.worldguard.WorldGuard;
 import net.md_5.bungee.api.ChatColor;
 import net.milkbowl.vault.economy.Economy;
 import net.milkbowl.vault.economy.EconomyResponse;
-
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.Location;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.Sign;
 import org.bukkit.command.Command;
@@ -33,6 +29,15 @@ import org.bukkit.event.block.SignChangeEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
+
+import java.io.*;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 public final class BuyRegion
     extends JavaPlugin implements Listener {
@@ -55,9 +60,10 @@ public final class BuyRegion
     public void onEnable() {
         instance = this;
 
-        getLogger().info("Maintained by Luke199");
+        getLogger().info("Original by Luke199");
         getLogger().info("Updated to 1.13 by GentleGravel");
-        getLogger().info("RedProtect version by FabioZumbi12");
+        getLogger().info("Contributors:");
+        getLogger().info("-> FabioZumbi12 (1.14 & RedProtect Integration)");
 
         try {
             if (!setupEconomy()) {
@@ -101,10 +107,12 @@ public final class BuyRegion
 
     public void onDisable() {
         try {
-            regionCounts.save();
-            rentedRegionExpirations.save();
-            rentedRegionCounts.save();
-            autoRenews.save();
+            if (pluginsHooks != null) {
+                regionCounts.save();
+                rentedRegionExpirations.save();
+                rentedRegionCounts.save();
+                autoRenews.save();
+            }
 
             getServer().getScheduler().cancelTasks(this);
         } catch(Exception e) {
@@ -114,11 +122,15 @@ public final class BuyRegion
 
     private boolean setupPlugins(){
         if (Bukkit.getPluginManager().isPluginEnabled("WorldGuard")){
+            getLogger().info(String.format("Region Manager: WorldGuard %s (min 7.0.0 beta 3)", WorldGuard.getVersion()));
             pluginsHooks = new WorldGuardHook();
-        } else
-        if (Bukkit.getPluginManager().isPluginEnabled("RedProtect")){
+        } else if (Bukkit.getPluginManager().isPluginEnabled("RedProtect")){
+            String version = Bukkit.getPluginManager().getPlugin("RedProtect").getDescription().getVersion();
+
+            getLogger().info(String.format("Region Manager: RedProtect %s (min 7.6.0 b#200)", version));
             pluginsHooks = new RedProtectHook();
         }
+
         return this.pluginsHooks != null;
     }
 

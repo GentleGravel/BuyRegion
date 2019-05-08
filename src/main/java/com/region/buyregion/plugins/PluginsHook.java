@@ -1,7 +1,6 @@
 package com.region.buyregion.plugins;
 
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.entity.Player;
 
 import java.util.List;

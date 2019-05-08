@@ -1,17 +1,14 @@
 package com.region.buyregion.helpers;
 
 import com.region.buyregion.BuyRegion;
+import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Locale;
-import java.util.ResourceBundle;
 import java.util.logging.Level;
-
-import org.bukkit.configuration.file.YamlConfiguration;
 
 public class LocaleHelper {
     private YamlConfiguration bundle;
