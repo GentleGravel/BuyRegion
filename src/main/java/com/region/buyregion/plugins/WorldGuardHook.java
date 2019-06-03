@@ -52,7 +52,7 @@ public class WorldGuardHook implements PluginsHook {
         public void addMember(String member) {
             DefaultDomain dd = new DefaultDomain();
             dd.addPlayer(member);
-            region.setOwners(dd);
+            region.setMembers(dd);
             try {
                 regionManager.save();
             } catch (StorageException e) {
@@ -69,7 +69,7 @@ public class WorldGuardHook implements PluginsHook {
         public void addOwner(String owner) {
             DefaultDomain dd = new DefaultDomain();
             dd.addPlayer(owner);
-            region.setMembers(dd);
+            region.setOwners(dd);
             try {
                 regionManager.save();
             } catch (StorageException e) {
