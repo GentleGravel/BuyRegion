@@ -974,8 +974,10 @@ public final class BuyRegion
                 if (!player.hasPermission("buyregion.create") && (!player.isOp())) {
                     event.setLine(0, "-restricted-");
                 } else {
-                    PluginsHook.PluginRegion region = pluginsHooks.getRegion(event.getBlock().getLocation());
                     String regionName = event.getLine(1);
+                    PluginsHook.PluginRegion region = regionName.isEmpty()
+                            ? pluginsHooks.getRegion(event.getBlock().getLocation())
+                            : pluginsHooks.getRegion(regionName, event.getBlock().getWorld().getName());
 
                     if (region != null){
                         regionName = region.getName();
@@ -994,7 +996,9 @@ public final class BuyRegion
                         event.setLine(0, "-invalid-");
                         return;
                     }
+
                     event.setLine(1, regionName);
+
                     try {
                         String dateString = event.getLine(3);
                         try {
