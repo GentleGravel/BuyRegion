@@ -1,0 +1,39 @@
+InvalidPriceTime: Signe invalide. Prix ou délai invalide !
+RegionNoExist: Signe invalide. La région n'existe pas !
+EvictedFrom: Vous avez été expulsé de %s
+InvalidArg: "Argument invalide. Valeur acceptées: true, false, yes, no, off, on"
+RenewTurnOff: Le renouvellement automatique a été désactivé pour vous.
+RenewTurnOn: Le renouvellement automatique a été activé pour vous.
+RenewOff: Le renouvellement automatique est désactivé !
+RenewOn: Le renouvellement automatique est activé !
+InvalidRenewArgs: "Argument non valides : /buyregion renew <region>"
+BuyModeExit: Vous avez quitté le mode d'achat.
+BuyModeEnter: Vous êtes maintenant en mode d'achat - cliquez avec le bouton droit sur le signe BuyRegion !
+ToEnterBuyMode: "Pour entrer dans le type de mode d''achat: /buyregion"
+BuyModeRent: Vous devez être en mode achat pour louer cette région !
+BuyModeBuy: Vous devez être en mode d'achat pour acheter cette région !
+NotEnoughRent: Pas assez d'argent pour louer cette région !
+NotEnoughBuy: Pas assez d'argent pour acheter cette région !
+TransFailed: La transaction a échoué !
+Rented: Félicitation! Vous avez loué %s
+NewBalance: Votre nouveau solde est de $%s
+RentMax: Vous n'êtes pas autorisé à louer plus de régions. Max %s
+RentPerms: Vous n'avez pas la permission de louer des régions.
+Balance: Votre solde est de $%s
+Purchased: Félicitation ! Vous avez acheté cette région !
+BuyMax: Vous n'êtes pas autorisé à acheter plus de régions. Max %s
+BuyPerms: Vous n'êtes pas autorisé à acheter des régions
+NotRented: "%s n''est pas loué actuellement."
+NotOwner: Vous n'êtes pas propriétaire de cette région !
+CantSelf: "Vous ne pouvez pas acheter ou louer vos propres régions !"
+NotRenting: Vous ne louez pas cette région. Vous ne pouvez pas le renouveler !
+NotEnoughRenew: Pas assez d'argent pour renouveler la location pour cette région !
+Renewed: Félicitation ! Vous avez renouvelé %s jusqu'au %s
+Expired: Votre location a expiré pour la région %s
+SignUntil: "Jusqu''à :"
+SignSold: "&c## Vendu ##"
+SignSoldTo: "Vendu à :"
+Help1: BuyRegion Commande
+Help2: /buyregion - Bascule en mode d'achat
+Help3: /buyregion renew <region> - Renouvelle la location de <region>
+Help4: /buyregion autorenew <true/false> - Renouvelle automatiquement toutes les régions louées
