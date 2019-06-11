@@ -48,14 +48,13 @@ public class RenterTask {
                                 if (BuyRegion.econ.getBalance(rentedRegion.renter) >= regionPrice) {
                                     EconomyResponse response = BuyRegion.econ.withdrawPlayer(rentedRegion.renter, regionPrice);
                                     if (response.transactionSuccess()) {
-                                        if (plugin.config.payRentOwners){
+                                        if (plugin.config.payRentOwners) {
                                             PluginsHook.PluginRegion pRegion = plugin.pluginsHooks.getRegion(regionName, rentedRegion.worldName);
                                             if (pRegion != null && pRegion.getOwners().size() > 0) {
                                                 double v = regionPrice / pRegion.getOwners().size();
-                                                pRegion.getOwners().forEach(o->BuyRegion.econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
+                                                pRegion.getOwners().forEach(o -> BuyRegion.econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
                                             }
                                         }
-
                                         renewed = true;
 
                                         String[] timeSpan = rentedRegion.signLine4.split(" ");
@@ -107,7 +106,6 @@ public class RenterTask {
 
                             World world = plugin.getServer().getWorld(rentedRegion.worldName);
                             PluginsHook.PluginRegion region = plugin.getPluginsHooks().getRegion(regionName, rentedRegion.worldName);
-
                             if (region == null)
                             return;
                             region.removeMember(rentedRegion.renter);
@@ -135,9 +133,9 @@ public class RenterTask {
                             } else {
                                 try {
                                     if (rentedRegion.signType.endsWith("WALL_SIGN")) {
-                                        currentBlock.setType(Arrays.stream(Material.values()).filter(s->s.name().endsWith("WALL_SIGN")).findFirst().get());
+                                        currentBlock.setType(Arrays.stream(Material.values()).filter(s -> s.name().endsWith("WALL_SIGN")).findFirst().get());
                                     } else {
-                                        currentBlock.setType(Arrays.stream(Material.values()).filter(s->s.name().endsWith("_SIGN")).findFirst().get());
+                                        currentBlock.setType(Arrays.stream(Material.values()).filter(s -> s.name().endsWith("_SIGN")).findFirst().get());
                                     }
                                     Sign newSign = (Sign) currentBlock.getState();
 

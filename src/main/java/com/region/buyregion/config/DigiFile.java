@@ -32,7 +32,6 @@ public class DigiFile<T> implements Serializable {
                 file.getParentFile().mkdirs();
                 file.createNewFile();
             }
-
             ObjectOutputStream tmp = new ObjectOutputStream(new FileOutputStream(file.getPath()));
             tmp.writeObject(o);
             tmp.flush();
