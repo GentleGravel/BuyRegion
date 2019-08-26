@@ -100,6 +100,11 @@ public class WorldGuardHook implements PluginsHook {
         }
 
         @Override
+        public boolean isMember(Player player) {
+            return region.isMember(WorldGuardPlugin.inst().wrapPlayer(player));
+        }
+
+        @Override
         public List<UUID> getOwners() {
             return new ArrayList<>(region.getOwners().getUniqueIds());
         }

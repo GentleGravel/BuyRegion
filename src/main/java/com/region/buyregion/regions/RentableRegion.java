@@ -58,7 +58,7 @@ public class RentableRegion {
     }
 
     public String toString() {
-        return this.worldName + "%%%" + this.regionName + "%%%" + this.renter + "%%%" + this.signLocationX + "%%%" + this.signLocationY + "%%%" + this.signLocationZ + "%%%" + this.signLocationPitch + "%%%" + this.signLocationYaw + "%%%" + this.signDirection + "%%%" + this.signLine1 + "%%%" + this.signLine2 + "%%%" + this.signLine3 + "%%%" + this.signLine4 + "%%%" + this.signType;
+        return String.format("%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s%%%%%%%s", this.worldName, this.regionName, this.renter, this.signLocationX, this.signLocationY, this.signLocationZ, this.signLocationPitch, this.signLocationYaw, this.signDirection, this.signLine1, this.signLine2, this.signLine3, this.signLine4, this.signType);
     }
 
 }

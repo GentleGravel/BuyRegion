@@ -39,12 +39,11 @@ import java.util.HashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
-public final class BuyRegion
-    extends JavaPlugin implements Listener {
+public final class BuyRegion extends JavaPlugin {
     public BuyRegionConfig config;
     public LocaleHelper locale;
     public static Economy econ = null;
-    private HashMap<String, Boolean> BuyMode = new HashMap<>();
+    HashMap<String, Boolean> BuyMode = new HashMap<>();
     private DigiFile<HashMap<String, Integer>> regionCounts;
     private DigiFile<ConcurrentHashMap<String, Integer>> rentedRegionCounts;
     public DigiFile<ConcurrentHashMap<String, Long>> rentedRegionExpirations;
@@ -81,7 +80,7 @@ public final class BuyRegion
             config = new BuyRegionConfig();
             locale = new LocaleHelper();
 
-            getServer().getPluginManager().registerEvents(this, this);
+            getServer().getPluginManager().registerEvents(new BuyRegionEvents(this), this);
 
             regionCounts = new DigiFile<>("RegionCounts", config.dataLoc, new HashMap<>());
             rentedRegionCounts = new DigiFile<>("RentedRegionCounts", config.dataLoc, new ConcurrentHashMap<>());
@@ -220,7 +219,7 @@ public final class BuyRegion
         }
     }
 
-    private int getBoughtRegionsCount(String playerName) {
+    int getBoughtRegionsCount(String playerName) {
         if (regionCounts.get().containsKey(playerName)) {
             return this.regionCounts.get().get(playerName);
         }
@@ -246,7 +245,7 @@ public final class BuyRegion
         }
     }
 
-    private int getRentedRegionsCount(String playerName) {
+    int getRentedRegionsCount(String playerName) {
         if (rentedRegionCounts.get().containsKey(playerName)) {
             return rentedRegionCounts.get().get(playerName);
         }
@@ -273,7 +272,7 @@ public final class BuyRegion
         }
     }
 
-    private void addRentedRegionFile(String playerName, String regionName, Sign sign) {
+    void addRentedRegionFile(String playerName, String regionName, Sign sign) {
         RentableRegion region = new RentableRegion();
 
         Location tmpLoc = sign.getLocation();
@@ -299,7 +298,7 @@ public final class BuyRegion
         saveRentableRegion(region);
     }
 
-    private void addBoughtRegionToCounts(String playerName) {
+    void addBoughtRegionToCounts(String playerName) {
         if (this.regionCounts.get().containsKey(playerName)) {
             this.regionCounts.get().put(playerName, getBoughtRegionsCount(playerName) + 1);
         } else {
@@ -308,7 +307,7 @@ public final class BuyRegion
         regionCounts.save();
     }
 
-    private void addRentedRegionToCounts(String playerName) {
+    void addRentedRegionToCounts(String playerName) {
         if (this.rentedRegionCounts.get().containsKey(playerName)) {
             this.rentedRegionCounts.get().put(playerName, getRentedRegionsCount(playerName) + 1);
         } else {
@@ -389,197 +388,7 @@ public final class BuyRegion
         }
     }
 
-    @EventHandler
-    public void onPunchSign(PlayerInteractEvent event) {
-        try {
-            if (event.getAction().name().equals("RIGHT_CLICK_BLOCK")) {
-                Material blockType = event.getClickedBlock().getType();
-                if (blockType.name().endsWith("_SIGN") || blockType.name().endsWith("WALL_SIGN")) {
-                    Sign sign = (Sign) event.getClickedBlock().getState();
-                    String topLine = sign.getLine(0);
-                    if (topLine.length() > 0 && (topLine.equalsIgnoreCase(config.signHeaderBuy) || topLine.equalsIgnoreCase("[WGRSA]"))) {
-                        Player sender = event.getPlayer();
-                        String playerName = sender.getName();
-                        if (topLine.equalsIgnoreCase("[WGRSA]")) {
-                            sign.setLine(0, config.signHeaderBuy);
-                            sign.update();
-                        }
-                        if (config.requireBuyPerms && !sender.hasPermission("buyregion.buy") && !sender.isOp()) {
-                            sender.sendMessage(ChatHelper.notice("BuyPerms"));
-                            return;
-                        }
-                        if (this.config.buyRegionMax > 0 && getBoughtRegionsCount(playerName) >= this.config.buyRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
-                            sender.sendMessage(ChatHelper.notice("BuyMax", this.config.buyRegionMax));
-                            return;
-                        }
-                        if (this.BuyMode.containsKey(playerName) || !config.requireBuyMode) {
-                            double regionPrice = Double.parseDouble(sign.getLine(2));
-
-                            String regionName = sign.getLine(1);
-                            World world = sender.getWorld();
-
-                            PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world.getName());
-
-                            if (region == null) {
-                                sender.sendMessage(ChatHelper.notice("RegionNoExist"));
-                                return;
-                            }
-
-                            if (region.isOwner(sender)){
-                                sender.sendMessage(ChatHelper.notice("CantSelf"));
-                                return;
-                            }
-
-                            if (econ.getBalance(sender) >= regionPrice) {
-                                EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
-                                if (response.transactionSuccess()) {
-                                    if (region.getOwners().size() > 0){
-                                        double v = regionPrice / region.getOwners().size();
-                                        region.getOwners().forEach(o->econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
-                                    }
-
-                                    region.addOwner(sender);
-
-                                    addBoughtRegionToCounts(playerName);
-
-                                    sender.sendMessage(ChatHelper.notice("Purchased", regionName));
-                                    sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(sender)));
-
-                                    logActivity(playerName, " BUY " + regionName);
-
-                                    sign.setLine(0, ChatColor.translateAlternateColorCodes('&', BuyRegion.instance.locale.get("SignSold")));
-                                    sign.setLine(1, ChatColor.translateAlternateColorCodes('&', BuyRegion.instance.locale.get("SignSoldTo")));
-                                    sign.setLine(2, ChatColor.WHITE + playerName);
-                                    sign.setLine(3, ChatColor.translateAlternateColorCodes('&', BuyRegion.instance.locale.get("SignSold")));
-                                    sign.update();
-
-                                    this.BuyMode.remove(playerName);
-                                } else {
-                                    sender.sendMessage(ChatHelper.notice("TransFailed"));
-                                }
-                            } else {
-                                sender.sendMessage(ChatHelper.warning("NotEnoughBuy"));
-                                sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(sender)));
-                            }
-                        } else {
-                            sender.sendMessage(ChatHelper.warning("BuyModeBuy"));
-                            sender.sendMessage(ChatHelper.warning("ToEnterBuyMode"));
-                        }
-                    } else if (topLine.length() > 0 && (topLine.equalsIgnoreCase(config.signHeaderRent))) {
-                        Player sender = event.getPlayer();
-                        String regionName = sign.getLine(1);
-                        String playerName = sender.getName();
-                        if (config.requireRentPerms && !sender.hasPermission("buyregion.rent") && (!sender.isOp())) {
-                            sender.sendMessage(ChatHelper.warning("RentPerms"));
-                            return;
-                        }
-                        if (config.rentRegionMax > 0 && getRentedRegionsCount(playerName) >= config.rentRegionMax && !sender.isOp() && (!sender.hasPermission("buyregion.exempt"))) {
-                            sender.sendMessage(ChatHelper.notice("RentMax", config.rentRegionMax));
-                            return;
-                        }
-                        if (this.BuyMode.containsKey(playerName) || (!config.requireBuyMode)) {
-                            if (regionName.length() > 0) {
-                                String dateString = sign.getLine(3);
-                                double regionPrice;
-
-                                try {
-                                    regionPrice = Double.parseDouble(sign.getLine(2));
-
-                                    String[] expiration = dateString.split("\\s");
-                                    int i = Integer.parseInt(expiration[0]);
-                                    DateResult dateResult = parseDateString(i, expiration[1]);
-                                    if (dateResult.IsError) {
-                                        throw new Exception();
-                                    }
-                                } catch(Exception e) {
-                                    getLogger().info("Region price or expiration");
-                                    sign.setLine(0, "-invalid-");
-                                    sign.setLine(1, "<region here>");
-                                    sign.setLine(2, "<price here>");
-                                    sign.setLine(3, "<timespan>");
-                                    sign.update();
-                                    getLogger().info("Invalid [RentRegion] sign cleared at " + sign.getLocation().toString());
-                                    return;
-                                }
-                                String[] expiration = sign.getLine(3).split("\\s");
-                                DateResult dateResult = parseDateString(Integer.parseInt(expiration[0]), expiration[1]);
-                                if (dateResult.IsError) {
-                                    throw new Exception();
-                                }
-                                World world = sender.getWorld();
-
-                                PluginsHook.PluginRegion region = pluginsHooks.getRegion(regionName, world.getName());
-
-                                if (region == null) {
-                                    sender.sendMessage(ChatHelper.notice("RegionNoExist"));
-                                    sign.setLine(0, "-invalid-");
-                                    sign.setLine(1, "<region here>");
-                                    sign.setLine(2, "<price here>");
-                                    sign.setLine(3, "<timespan>");
-                                    sign.update();
-                                    getLogger().info("Invalid [RentRegion] sign cleared at " + sign.getLocation().toString());
-                                    return;
-                                }
-
-                                if (region.isOwner(sender)){
-                                    sender.sendMessage(ChatHelper.notice("CantSelf"));
-                                    return;
-                                }
-
-                                if (econ.getBalance(sender) >= regionPrice) {
-                                    EconomyResponse response = econ.withdrawPlayer(sender, regionPrice);
-                                    if (response.transactionSuccess()) {
-                                        if (config.payRentOwners){
-                                            if (region.getOwners().size() > 0) {
-                                                double v = regionPrice / region.getOwners().size();
-                                                region.getOwners().forEach(o->econ.depositPlayer(Bukkit.getOfflinePlayer(o), v));
-                                            }
-                                        }
-
-                                        region.addMember(sender);
-
-                                        addRentedRegionFile(playerName, regionName, sign);
-
-                                        addRentedRegionToCounts(playerName);
-
-                                        logActivity(playerName, " RENT " + regionName);
-
-                                        SimpleDateFormat sdf = new SimpleDateFormat(config.dateFormatString);
-
-                                        sign.setLine(0, regionName);
-                                        sign.setLine(1, playerName);
-                                        sign.setLine(2, ChatColor.WHITE + BuyRegion.instance.locale.get("SignUntil"));
-                                        sign.setLine(3, sdf.format(new Date(dateResult.Time)));
-                                        sign.update();
-
-                                        sender.sendMessage(ChatHelper.notice("Rented", regionName, sdf.format(new Date(dateResult.Time))));
-                                        sender.sendMessage(ChatHelper.notice("NewBalance", econ.getBalance(sender)));
-
-                                        this.rentedRegionExpirations.get().put(regionName, dateResult.Time);
-                                        rentedRegionExpirations.save();
-
-                                        this.BuyMode.remove(playerName);
-                                    } else {
-                                        sender.sendMessage(ChatHelper.warning("TransFailed"));
-                                    }
-                                } else {
-                                    sender.sendMessage(ChatHelper.warning("NotEnoughRent"));
-                                    sender.sendMessage(ChatHelper.warning("Balance", econ.getBalance(sender)));
-                                }
-                            }
-                        } else {
-                            sender.sendMessage(ChatHelper.warning("BuyModeRent"));
-                            sender.sendMessage(ChatHelper.warning("ToEnterBuyMode"));
-                        }
-                    }
-                }
-            }
-        } catch(Exception e) {
-            getLogger().severe(e.getMessage());
-        }
-    }
-
-    private DateResult parseDateString(int val, String type) {
+    DateResult parseDateString(int val, String type) {
         try {
             Date tmp = new Date();
             if (type.equalsIgnoreCase("d") || type.equalsIgnoreCase("day") || (type.equalsIgnoreCase("days"))) {
@@ -964,78 +773,6 @@ public final class BuyRegion
             getLogger().log(Level.SEVERE, "An error occurred during an eviction.", e);
         }
         return false;
-    }
-
-    @EventHandler(priority = EventPriority.HIGHEST)
-    public void signChangeMonitor(SignChangeEvent event) {
-        try {
-            Player player = event.getPlayer();
-            if (event.getLine(0).equalsIgnoreCase("[WGRSA]") || event.getLine(0).equalsIgnoreCase(config.signHeaderBuy) || (event.getLine(0).equalsIgnoreCase(config.signHeaderRent))) {
-                if (!player.hasPermission("buyregion.create") && (!player.isOp())) {
-                    event.setLine(0, "-restricted-");
-                } else {
-                    String regionName = event.getLine(1);
-                    PluginsHook.PluginRegion region = regionName.isEmpty()
-                            ? pluginsHooks.getRegion(event.getBlock().getLocation())
-                            : pluginsHooks.getRegion(regionName, event.getBlock().getWorld().getName());
-
-                    if (region != null){
-                        regionName = region.getName();
-                        if (!region.isOwner(player) && !player.hasPermission("buyregion.admin")){
-                            event.getPlayer().sendMessage(ChatHelper.warning("NotOwner"));
-                            event.setLine(0, "-invalid-");
-                            return;
-                        }
-                    } else if (!regionName.isEmpty()){
-                        World world = event.getBlock().getWorld();
-                        region = pluginsHooks.getRegion(regionName, world.getName());
-                    }
-
-                    if (region == null) {
-                        event.getPlayer().sendMessage(ChatHelper.warning("RegionNoExist"));
-                        event.setLine(0, "-invalid-");
-                        return;
-                    }
-
-                    event.setLine(1, regionName);
-
-                    try {
-                        String dateString = event.getLine(3);
-                        try {
-                            double regionPrice = Double.parseDouble(event.getLine(2));
-                            if (regionPrice <= 0.0D) {
-                                throw new Exception();
-                            }
-                            if (event.getLine(0).equalsIgnoreCase(config.signHeaderRent)) {
-                                String[] expiration = dateString.split("\\s");
-                                int i = Integer.parseInt(expiration[0]);
-                                DateResult dateResult = parseDateString(i, expiration[1]);
-                                if (dateResult.IsError) {
-                                    throw new Exception();
-                                }
-                            }
-                        } catch(Exception e) {
-                            event.getPlayer().sendMessage(ChatHelper.notice("InvalidPriceTime"));
-                            event.setLine(0, "-invalid-");
-
-                            return;
-                        }
-                        if (!event.getLine(0).equalsIgnoreCase(config.signHeaderRent)) {
-                            event.setLine(0, config.signHeaderBuy);
-                        } else {
-                            event.setLine(0, config.signHeaderRent);
-                        }
-                    } catch(Exception e) {
-                        event.getPlayer().sendMessage(ChatHelper.notice("Invalid amount!"));
-                        event.setLine(0, "-invalid-");
-                        return;
-                    }
-                    event.getPlayer().sendMessage(ChatHelper.notice("A BuyRegion sign has been created!"));
-                }
-            }
-        } catch(Exception e) {
-            getLogger().log(Level.SEVERE, "An error occurred in signChangeMonitor", e);
-        }
     }
 
     private void saveRentableRegion(RentableRegion region) {

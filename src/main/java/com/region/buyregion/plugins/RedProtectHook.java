@@ -73,6 +73,11 @@ public class RedProtectHook implements PluginsHook {
         }
 
         @Override
+        public boolean isMember(Player player) {
+            return region.isMember(player);
+        }
+
+        @Override
         public List<UUID> getOwners() {
             return region.getLeaders().stream().map(
                 l -> {
