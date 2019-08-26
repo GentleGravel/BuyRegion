@@ -328,7 +328,7 @@ public class BuyRegionEvents implements Listener {
 
             this.plugin.getLogger().info("-> region exists");
 
-            if (!player.hasPermission("buyregion.create") || !region.isOwner(player) || !region.isMember(player)) {
+            if (!player.hasPermission("buyregion.admin") || !region.isOwner(player) || region.isMember(player)) {
                 event.setCancelled(true);
             }
         } catch (Exception e) {
