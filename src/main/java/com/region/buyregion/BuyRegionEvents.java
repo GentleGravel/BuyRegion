@@ -307,16 +307,12 @@ public class BuyRegionEvents implements Listener {
                 return;
             }
 
-            this.plugin.getLogger().info("-> is sign");
-
             Sign sign = (Sign) event.getBlock().getState();
             String topLine = sign.getLine(0);
 
             if (!(topLine.length() == 0 || !(topLine.equalsIgnoreCase(this.plugin.config.signHeaderBuy) && topLine.equalsIgnoreCase("[WGRSA]") || topLine.equalsIgnoreCase(this.plugin.config.signHeaderRent)))) {
                 return;
             }
-
-            this.plugin.getLogger().info("-> is buyregion sign");
 
             String regionName = sign.getLine(1);
             World world = player.getWorld();
@@ -325,8 +321,6 @@ public class BuyRegionEvents implements Listener {
             if (region == null) {
                 return;
             }
-
-            this.plugin.getLogger().info("-> region exists");
 
             if (!player.hasPermission("buyregion.admin") || !region.isOwner(player) || region.isMember(player)) {
                 event.setCancelled(true);
