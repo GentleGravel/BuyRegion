@@ -297,7 +297,7 @@ public class BuyRegionEvents implements Listener {
         try {
             Player player = event.getPlayer();
 
-            if (player.isOp()) {
+            if (player.isOp() || player.hasPermission("buyregion.admin")) {
                 return;
             }
 
@@ -322,7 +322,7 @@ public class BuyRegionEvents implements Listener {
                 return;
             }
 
-            if (!player.hasPermission("buyregion.admin") || !region.isOwner(player) || region.isMember(player)) {
+            if (!player.hasPermission("buyregion.create") || !region.isOwner(player) || region.isMember(player)) {
                 event.setCancelled(true);
             }
         } catch (Exception e) {
